@@ -418,7 +418,10 @@ char *parseFile(const char *fileName) {
                 } else if (matched == 1) {
                     operands[0] = '\0';
                 }
-                if (strcmp(opcode, "mov") == 0) {
+                char originalOperands[100];
+                strncpy(originalOperands, operands, sizeof(originalOperands));
+                originalOperands[sizeof(originalOperands) - 1] = '\0';
+                if (strcmp(opcode, "mov") == 0 || strcmp(opcode, "brr") == 0) {
                     size_t lineLength = strlen(line);
                     if (outputLength + lineLength >= bufferSize) {
                         bufferSize *= 2;
@@ -435,11 +438,8 @@ char *parseFile(const char *fileName) {
                     outputLength += lineLength;
                     continue; 
                 }
-                char originalOperands[100];
-                strncpy(originalOperands, operands, sizeof(originalOperands));
-                originalOperands[sizeof(originalOperands)-1] = '\0';
                 printf("DEBUG: Extracted opcode: '%s', operands: '%s'\n", opcode, operands);
-                char expanded[256] = {0}; 
+                char expanded[4096] = {0}; 
                 printf("DEBUG: Extracted opcode: '%s', operands: '%s'\n", opcode, operands);
                 const char *expectedOperands = getOperandFormat(opcode);
                 if (!expectedOperands) {
@@ -500,10 +500,10 @@ char *parseFile(const char *fileName) {
                     snprintf(expanded, sizeof(expanded), "\tmov %s, (r31)(0)\n\taddi r31, 8\n", operands);
                 }
                 else if (strcmp(opcode, "in") == 0) { 
-                    snprintf(expanded, sizeof(expanded), "\tpriv %s, %s, r0, 3\n", operands, operands);
+                    snprintf(expanded, sizeof(expanded), "\tpriv %s, r0, 3\n", originalOperands);
                 }
                 else if (strcmp(opcode, "out") == 0) { 
-                    snprintf(expanded, sizeof(expanded), "\tpriv %s, %s, r0, 0\n", operands, operands);
+                    snprintf(expanded, sizeof(expanded), "\tpriv %s, r0, 0\n", originalOperands);
                 }
                 else if (strcmp(opcode, "halt") == 0) {
                     snprintf(expanded, sizeof(expanded), "\tpriv r0, r0, r0, 0\n");
@@ -521,12 +521,12 @@ char *parseFile(const char *fileName) {
                         return NULL;
                     }
 
-                    size_t rdLength = commaPos - operands;
-                    strncpy(rd, operands, rdLength);
+                    size_t rdLength = commaPos - originalOperands;
+                    strncpy(rd, originalOperands, rdLength);
                     rd[rdLength] = '\0'; 
                     char *labelStart = commaPos + 1;
                     while (*labelStart == ' ') labelStart++;
-
+                    strncpy(label, labelStart, sizeof(label) - 1);
                     label[sizeof(label) - 1] = '\0';
 
                     printf("DEBUG: Parsed ld -> rd: '%s', label: '%s'\n", rd, label);
@@ -568,7 +568,7 @@ char *parseFile(const char *fileName) {
                     int bitSeq5 = (address >> 4) & 4095;
                     int bitSeq6 = address & 0xF;
 
-                    snprintf(expanded, sizeof(expanded),
+                    int written = snprintf(expanded, sizeof(expanded),
                         "\txor %s, %s, %s\n"
                         "\taddi %s, %d\n"
                         "\tshftli %s, 12\n"
@@ -582,12 +582,20 @@ char *parseFile(const char *fileName) {
                         "\tshftli %s, 4\n"
                         "\taddi %s, %d\n",
                         rd, rd, rd,
-                        rd, bitSeq1, rd,
-                        rd, bitSeq2, rd,
-                        rd, bitSeq3, rd,
-                        rd, bitSeq4, rd,
-                        rd, bitSeq5, rd,
-                        rd, bitSeq6);
+                        rd, bitSeq1, 
+                        rd,
+                        rd, bitSeq2, 
+                        rd,
+                        rd, bitSeq3, 
+                        rd,
+                        rd, bitSeq4, 
+                        rd,
+                        rd, bitSeq5, 
+                        rd,
+                        rd, bitSeq6
+                    );
+                    printf("DEBUG: ld expansion written %d characters\n", written);
+                    printf("DEBUG: ld expansion:\n%s\n", expanded);
                 }
                 
                 else {
@@ -598,18 +606,17 @@ char *parseFile(const char *fileName) {
                 }
 
                 size_t lineLength = strlen(expanded) + 1;
-                if (outputLength + lineLength >= bufferSize) {
+                while (outputLength + strlen(expanded) + 1 >= bufferSize) {
                     bufferSize *= 2;
-                    char *temp = realloc(outputBuffer, bufferSize);
-                    if (!temp) {
-                        perror("Error reallocating output buffer");
-                        free(outputBuffer);
-                        fclose(inputFile);
-                        return NULL;
-                    }
-                    outputBuffer = temp;
                 }
-
+                char *temp = realloc(outputBuffer, bufferSize);
+                if (!temp) {
+                    perror("Error reallocating output buffer");
+                    free(outputBuffer);
+                    fclose(inputFile);
+                    return NULL;
+                }
+                outputBuffer = temp;
                 strncat(outputBuffer, expanded, bufferSize - outputLength - 1);
                 outputLength += strlen(expanded);
             }
@@ -630,8 +637,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error processing file.\n");
         return EXIT_FAILURE;
     }
+    printf("DEBUG: Final outputBuffer:\n%s\n", outputBuffer);
 
-    FILE *outputFile = fopen(argv[2], "w");
+    FILE *outputFile = fopen(argv[2], "wb");
     if (!outputFile) {
         perror("Error opening output file");
         free(outputBuffer);
@@ -639,6 +647,7 @@ int main(int argc, char *argv[]) {
     }
 
     fprintf(outputFile, "%s", outputBuffer);
+    fflush(outputFile);
     fclose(outputFile);
     free(outputBuffer);
 

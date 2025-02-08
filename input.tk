@@ -1,10 +1,2 @@
 .code
-    clr r0
-    add r5, r6, r7
-; the above line is a macro, it sets the value of register r0 to 0!
-    br r5
-; the above two instructions are for illustration only
-.code
-; the above line is also a macro!
-.data
-    :L1
+    ld r3, 7 
