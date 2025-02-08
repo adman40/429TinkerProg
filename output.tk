@@ -1,3 +1,6 @@
 .code
 	xor r0, r0, r0
+	add r5, r6, r7
 	br r5
+.data
+4096

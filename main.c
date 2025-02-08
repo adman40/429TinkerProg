@@ -591,8 +591,8 @@ char *parseFile(const char *fileName) {
                 }
                 
                 else {
-                    if (operands[0] != '\0')
-                        snprintf(expanded, sizeof(expanded), "\t%s %s\n", opcode, operands);
+                    if (originalOperands[0] != '\0')
+                        snprintf(expanded, sizeof(expanded), "\t%s %s\n", opcode, originalOperands);
                     else
                         snprintf(expanded, sizeof(expanded), "\t%s\n", opcode);    
                 }
@@ -645,6 +645,4 @@ int main(int argc, char *argv[]) {
     printf("Assembly successfully written to %s\n", argv[2]);
     return EXIT_SUCCESS;
 }
-
-
 
