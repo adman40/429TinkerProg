@@ -189,41 +189,56 @@ void collectLabels(const char *fileName, HashMap *labelMap) {
     }
 
     char line[256];
-    int isData = 0, isCode = 0;
-    int memLabelCounter = 4096;
+    int programCounter = 4096;
+    int inCode = 0, inData = 0;
 
     while (fgets(line, sizeof(line), inputFile)) {
         char *trimmed = line;
-        while (*trimmed == ' ' || *trimmed == '\t') { 
-            trimmed++; 
+        while (*trimmed == ' ' || *trimmed == '\t') {
+            trimmed++;
         }
-
-        if (trimmed[0] == ';' || trimmed[0] == '\0' || trimmed[0] == '\n')
+        if (trimmed[0] == ';' || trimmed[0] == '\n' || trimmed[0] == '\0')
             continue;
-
         if (trimmed[0] == '.') {
             if (strncmp(trimmed, ".data", 5) == 0) {
-                isData = 1;
-                isCode = 0;
+                inData = 1;
+                inCode = 0;
             } else if (strncmp(trimmed, ".code", 5) == 0) {
-                isData = 0;
-                isCode = 1;
+                inCode = 1;
+                inData = 0;
             }
             continue;
         }
-
         if (trimmed[0] == ':') {
             char label[50];
             sscanf(trimmed, "%49s", label);
-            trimWhitespace(label); 
-
-            if (hashMapSearch(labelMap, label) == NULL) { 
-                char memAddressString[20];
-                snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
-                memLabelCounter += (isData ? 8 : 4);
-                hashMapInsert(labelMap, label, memAddressString);
-                printf("Collected label: '%s' -> address: '%s'\n", label, memAddressString);
+            trimWhitespace(label);
+            if (hashMapSearch(labelMap, label) == NULL) {
+                char addressStr[20];
+                snprintf(addressStr, sizeof(addressStr), "%d", programCounter);
+                hashMapInsert(labelMap, label, addressStr);
+                printf("Collected label: '%s' -> address: '%s'\n", label, addressStr);
+            } else {
+                fprintf(stderr, "Error: Duplicate label %s\n", label);
             }
+            continue;
+        }
+        if (inCode) {
+            char opcode[20];
+            if (sscanf(line, "\t%19s", opcode) != 1) {
+                fprintf(stderr, "Error parsing instruction: %s\n", line);
+                continue;
+            }
+            if (strcmp(opcode, "ld") == 0) {
+                programCounter += 48;
+            } else if (strcmp(opcode, "push") == 0 || strcmp(opcode, "pop") == 0) {
+                programCounter += 8;
+            } else {
+                programCounter += 4;
+            }
+        }
+        else if (inData) {
+            programCounter += 8;
         }
     }
 
