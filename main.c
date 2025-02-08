@@ -184,7 +184,7 @@ void trimWhitespace(char *str) {
 void collectLabels(const char *fileName, HashMap *labelMap) {
     FILE *inputFile = fopen(fileName, "r");
     if (!inputFile) {
-        perror("Error opening file");
+        fprintf(stderr, "Error opening file");
         return;
     }
 
@@ -284,13 +284,13 @@ void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
 char *parseFile(const char *fileName) {
     FILE *inputFile = fopen(fileName, "r");
     if (!inputFile) {
-        perror("Error opening file");
+        fprintf(stderr, "Error opening file");
         return NULL;
     }
     size_t bufferSize = (size_t)(getFileSize(inputFile) * 1.5);
     char *outputBuffer = (char*)malloc(bufferSize);
     if (!outputBuffer) {
-        perror("Error allocating output buffer");
+        fprintf(stderr, "Error allocating output buffer");
         fclose(inputFile);
         return NULL;
     }
@@ -312,7 +312,7 @@ char *parseFile(const char *fileName) {
         }
         else if (trimmed[0] == '.') {
             if (strncmp(trimmed, ".data", 5) != 0 && strncmp(trimmed, ".code", 5) != 0) {
-                perror("Error . must be followed by code or data");
+                fprintf(stderr, "Error . must be followed by code or data");
                 free(outputBuffer);
                 fclose(inputFile);
                 return NULL;
@@ -340,7 +340,7 @@ char *parseFile(const char *fileName) {
                 bufferSize *= 2;
                 char *temp = realloc(outputBuffer, bufferSize);
                 if (!temp) {
-                    perror("Error reallocating output buffer");
+                    fprintf(stderr, "Error reallocating output buffer");
                     free(outputBuffer);
                     fclose(inputFile);
                     return NULL;
@@ -364,13 +364,13 @@ char *parseFile(const char *fileName) {
         }
         else {
             if (line[0] != '\t' && strncmp(line, "    ", 4) != 0) {
-                perror("Error instruction line should start with tab");
+                fprintf(stderr, "Error instruction line should start with tab");
                 free(outputBuffer);
                 fclose(inputFile);
                 return NULL;
             }
             if (!isCode && !isData) {
-                perror("Error, instructions/data must follow .code or .data");
+                fprintf(stderr, "Error, instructions/data must follow .code or .data");
                 free(outputBuffer);
                 fclose(inputFile);
                 return NULL;
@@ -399,7 +399,7 @@ char *parseFile(const char *fileName) {
                     bufferSize *= 2;
                     char *temp = realloc(outputBuffer, bufferSize);
                     if (!temp) {
-                        perror("Error reallocating output buffer");
+                        fprintf(stderr, "Error reallocating output buffer");
                         free(outputBuffer);
                         fclose(inputFile);
                         return NULL;
@@ -436,7 +436,7 @@ char *parseFile(const char *fileName) {
                         bufferSize *= 2;
                         char *temp = realloc(outputBuffer, bufferSize);
                         if (!temp) {
-                            perror("Error reallocating output buffer");
+                            fprintf(stderr, "Error reallocating output buffer");
                             free(outputBuffer);
                             fclose(inputFile);
                             return NULL;
@@ -447,9 +447,7 @@ char *parseFile(const char *fileName) {
                     outputLength += lineLength;
                     continue; 
                 }
-                printf("DEBUG: Extracted opcode: '%s', operands: '%s'\n", opcode, operands);
                 char expanded[4096] = {0}; 
-                printf("DEBUG: Extracted opcode: '%s', operands: '%s'\n", opcode, operands);
                 const char *expectedOperands = getOperandFormat(opcode);
                 if (!expectedOperands) {
                     fprintf(stderr, "Error: Invalid instruction '%s'.\n", opcode);
@@ -471,7 +469,6 @@ char *parseFile(const char *fileName) {
                     }
 
                     if (expectedOperands[opIndex] == 'R') {
-                        printf("DEBUG: Checking register operand: '%s'\n", token);
                         if (!isValidRegister(token)) {
                             fprintf(stderr, "Error: Expected a valid register (r0-r31), but got '%s'.\n", token);
                             free(outputBuffer);
@@ -519,9 +516,6 @@ char *parseFile(const char *fileName) {
                 }
                 else if (strcmp(opcode, "ld") == 0) {
                     char rd[10] = {0}, label[50] = {0};
-
-                    printf("DEBUG: Raw operands for ld: '%s'\n", operands);
-
                     char *commaPos = strchr(originalOperands, ',');
                     if (!commaPos) {
                         fprintf(stderr, "Error: ld instruction operands must be comma-separated (e.g., ld r1, :D0)\n");
@@ -537,9 +531,6 @@ char *parseFile(const char *fileName) {
                     while (*labelStart == ' ') labelStart++;
                     strncpy(label, labelStart, sizeof(label) - 1);
                     label[sizeof(label) - 1] = '\0';
-
-                    printf("DEBUG: Parsed ld -> rd: '%s', label: '%s'\n", rd, label);
-
                     if (!isValidRegister(rd)) {
                         fprintf(stderr, "Error: Invalid destination register '%s' in ld instruction\n", rd);
                         free(outputBuffer);
@@ -561,7 +552,6 @@ char *parseFile(const char *fileName) {
                     } 
                     else if (isValidImmediate(label)) {
                         address = strtoll(label, NULL, 10);
-                        printf("DEBUG: Immediate address detected: %lld\n", address);
                     }
                     else {
                         fprintf(stderr, "Error: ld instruction must use a valid memory label or 64-bit immediate\n");
@@ -603,8 +593,6 @@ char *parseFile(const char *fileName) {
                         rd,
                         rd, bitSeq6
                     );
-                    printf("DEBUG: ld expansion written %d characters\n", written);
-                    printf("DEBUG: ld expansion:\n%s\n", expanded);
                 }
                 
                 else {
@@ -621,7 +609,7 @@ char *parseFile(const char *fileName) {
                 }
                 char *temp = realloc(outputBuffer, bufferSize);
                 if (!temp) {
-                    perror("Error reallocating output buffer");
+                    fprintf(stderr, "Error reallocating output buffer");
                     free(outputBuffer);
                     fclose(inputFile);
                     return NULL;
@@ -647,11 +635,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error processing file.\n");
         return EXIT_FAILURE;
     }
-    printf("DEBUG: Final outputBuffer:\n%s\n", outputBuffer);
 
     FILE *outputFile = fopen(argv[2], "wb");
     if (!outputFile) {
-        perror("Error opening output file");
+       fprintf(stderr, "Error opening output file");
         free(outputBuffer);
         return EXIT_FAILURE;
     }
