@@ -345,49 +345,7 @@ char *parseFile(const char *fileName) {
             lastSection = currentSection;
         }
         else if (trimmed[0] == ':') {
-            if (!isCode && !isData) {
-                perror("Error, label must be in scope of .code or .data");
-                free(outputBuffer);
-                fclose(inputFile);
-                return NULL;
-            }
-            char label[50];
-            char memAddressString[20];
-            sscanf(line, ":%49s", label);
-            trimWhitespace(label);
-            char *existing = hashMapSearch(&labelMap, label);
-            if (existing == NULL) {
-                if (memLabelCounter == 4096) {
-                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
-                    hashMapInsert(&labelMap, label, memAddressString);
-                } else {
-                    if (isCode) {
-                        memLabelCounter += 4;
-                    } else if (isData) {
-                        memLabelCounter += 8;
-                    }
-                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
-                    hashMapInsert(&labelMap, label, memAddressString);
-                }
-            } else {
-                strncpy(memAddressString, existing, sizeof(memAddressString));
-                memAddressString[sizeof(memAddressString)-1] = '\0';
-            }
-            
-            size_t lineLength = strlen(label) + strlen(memAddressString) + 4;  
-            while (outputLength + lineLength >= bufferSize) {
-                bufferSize *= 2;
-                char *temp = realloc(outputBuffer, bufferSize);
-                if (!temp) {
-                    perror("Error reallocating output buffer");
-                    free(outputBuffer);
-                    fclose(inputFile);
-                    return NULL;
-                }
-                outputBuffer = temp;
-            }
-            snprintf(outputBuffer + outputLength, bufferSize - outputLength, "%s\n", memAddressString);
-            outputLength += lineLength;
+            continue;
         }
         else {
             if (line[0] != '\t' && strncmp(line, "    ", 4) != 0) {

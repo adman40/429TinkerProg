@@ -1,5 +1,6 @@
 .code
-    addi r5, :D1
+    addi r6, :L1
 .data
-:D1
-    50
+:L1
+    3
+    7

@@ -1,5 +1,5 @@
 .code
-	addi r5, 4096
+	addi r6, 4096
 .data
-4096
-    50
+    3
+    7
