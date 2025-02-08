@@ -230,22 +230,14 @@ void collectLabels(const char *fileName, HashMap *labelMap) {
     fclose(inputFile);
 }
 
-// This function assumes that a label token begins with ':' and ends at the next comma or whitespace.
-// It scans the entire operand string and replaces any token that starts with ':' with its value from the hash map.
 void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
-    // We'll use a temporary buffer to build the new operand string.
     char newOperands[100] = {0};
     int firstToken = 1;
-
-    // Use strtok on a copy so we don't modify the original string structure unexpectedly.
     char temp[100];
     strncpy(temp, operands, sizeof(temp));
     temp[sizeof(temp) - 1] = '\0';
-
-    // Tokenize by comma.
     char *token = strtok(temp, ",");
     while (token != NULL) {
-        // Trim leading/trailing whitespace from token.
         while (*token && isspace((unsigned char)*token))
             token++;
         char *end = token + strlen(token) - 1;
@@ -253,31 +245,23 @@ void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
             *end = '\0';
             end--;
         }
-
         char processedToken[50] = {0};
-        // If token starts with ':' assume it's a label.
         if (token[0] == ':') {
-            // Look up the label in the hash map.
             char *lookup = hashMapSearch(labelMap, token);
             if (lookup != NULL) {
                 strncpy(processedToken, lookup, sizeof(processedToken)-1);
             } else {
-                // If not found, keep the token as is.
                 strncpy(processedToken, token, sizeof(processedToken)-1);
             }
         } else {
             strncpy(processedToken, token, sizeof(processedToken)-1);
         }
-        
-        // Append to newOperands, adding a comma if needed.
         if (!firstToken)
             strncat(newOperands, ", ", sizeof(newOperands) - strlen(newOperands) - 1);
         strncat(newOperands, processedToken, sizeof(newOperands) - strlen(newOperands) - 1);
-        
         firstToken = 0;
         token = strtok(NULL, ",");
     }
-    // Copy the processed string back into operands.
     strncpy(operands, newOperands, 100);
     operands[99] = '\0';
 }
