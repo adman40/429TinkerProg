@@ -1,2 +1,4 @@
 .code
-    ld r3, 7 
+:L1
+.data
+:D1    

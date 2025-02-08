@@ -1,13 +1,4 @@
 .code
-	xor r3, r3, r3
-	addi r3, 0
-	shftli r3, 12
-	addi r3, 0
-	shftli r3, 12
-	addi r3, 0
-	shftli r3, 12
-	addi r3, 0
-	shftli r3, 12
-	addi r3, 0
-	shftli r3, 4
-	addi r3, 7
+4096
+.data
+4100

@@ -22,6 +22,7 @@ typedef struct HashNode {
 
 typedef struct {
     HashNode *buckets[NUM_HASH_BUCKETS];
+    int numLabels;
 } HashMap;
 
 unsigned int hashFunction(const char *key) {
@@ -37,6 +38,7 @@ void initializeHashMap(HashMap *map) {
     for (int i = 0; i < NUM_HASH_BUCKETS; i++) {
         map->buckets[i] = NULL;
     } 
+    map->numLabels = 0;
 }
 
 void hashMapInsert(HashMap *map, const char *key, const char *value) {
@@ -60,6 +62,7 @@ void hashMapInsert(HashMap *map, const char *key, const char *value) {
     strcpy(node->value, value);
     node->next = map->buckets[index];
     map->buckets[index] = node;
+    map->numLabels++;
 
 }
 
@@ -286,7 +289,7 @@ char *parseFile(const char *fileName) {
             }
 
             size_t lineLength = strlen(line);
-            if (outputLength + lineLength >= bufferSize) {
+            while (outputLength + lineLength >= bufferSize) {
                 bufferSize *= 2;
                 char *temp = realloc(outputBuffer, bufferSize);
                 if (!temp) {
@@ -310,48 +313,26 @@ char *parseFile(const char *fileName) {
             lastSection = currentSection;
         }
         else if (trimmed[0] == ':') {
-            if (!isCode && !isData) {
-                perror("Error, label must be in scope of .code or .data");
+            // We assume that the label has already been processed and inserted into the hash map.
+            char label[50];
+            sscanf(trimmed, "%49s", label);
+            trimWhitespace(label);
+            char *value = hashMapSearch(&labelMap, label);
+            if (value == NULL) {
+                fprintf(stderr, "Error: Label %s not found in hash map\n", label);
                 free(outputBuffer);
                 fclose(inputFile);
                 return NULL;
             }
-            char label[50];
-            char memAddressString[20];
-            sscanf(line, ":%49s", label);
-            char *existing = hashMapSearch(&labelMap, label);
-            if (existing == NULL) {
-                if (memLabelCounter == 4096) {
-                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
-                    hashMapInsert(&labelMap, label, memAddressString);
-                } else {
-                    if (isCode) {
-                        memLabelCounter += 4;
-                    } else if (isData) {
-                        memLabelCounter += 8;
-                    }
-                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
-                    hashMapInsert(&labelMap, label, memAddressString);
-                }
-            } else {
-                strncpy(memAddressString, existing, sizeof(memAddressString));
-                memAddressString[sizeof(memAddressString)-1] = '\0';
+            // Append the label's memory address (value) followed by a newline.
+            int n = snprintf(outputBuffer + outputLength, bufferSize - outputLength, "%s\n", value);
+            if (n < 0) {
+                fprintf(stderr, "Error formatting label output.\n");
+                free(outputBuffer);
+                fclose(inputFile);
+                return NULL;
             }
-            
-            size_t lineLength = strlen(label) + strlen(memAddressString) + 4;  
-            if (outputLength + lineLength >= bufferSize) {
-                bufferSize *= 2;
-                char *temp = realloc(outputBuffer, bufferSize);
-                if (!temp) {
-                    perror("Error reallocating output buffer");
-                    free(outputBuffer);
-                    fclose(inputFile);
-                    return NULL;
-                }
-                outputBuffer = temp;
-            }
-            snprintf(outputBuffer + outputLength, bufferSize - outputLength, "%s\n", memAddressString);
-            outputLength += lineLength;
+            outputLength += n;
         }
         else {
             if (line[0] != '\t' && strncmp(line, "    ", 4) != 0) {
@@ -386,7 +367,7 @@ char *parseFile(const char *fileName) {
                 }
 
                 size_t lineLength = strlen(line) + 1;
-                if (outputLength + lineLength >= bufferSize) {
+                while (outputLength + lineLength >= bufferSize) {
                     bufferSize *= 2;
                     char *temp = realloc(outputBuffer, bufferSize);
                     if (!temp) {
@@ -423,7 +404,7 @@ char *parseFile(const char *fileName) {
                 originalOperands[sizeof(originalOperands) - 1] = '\0';
                 if (strcmp(opcode, "mov") == 0 || strcmp(opcode, "brr") == 0) {
                     size_t lineLength = strlen(line);
-                    if (outputLength + lineLength >= bufferSize) {
+                    while (outputLength + lineLength >= bufferSize) {
                         bufferSize *= 2;
                         char *temp = realloc(outputBuffer, bufferSize);
                         if (!temp) {
