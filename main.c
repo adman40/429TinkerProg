@@ -503,7 +503,7 @@ char *parseFile(const char *fileName) {
                     snprintf(expanded, sizeof(expanded), "\tpriv %s, r0, 3\n", originalOperands);
                 }
                 else if (strcmp(opcode, "out") == 0) { 
-                    snprintf(expanded, sizeof(expanded), "\tpriv %s, r0, 0\n", originalOperands);
+                    snprintf(expanded, sizeof(expanded), "\tpriv %s, r0, 4\n", originalOperands);
                 }
                 else if (strcmp(opcode, "halt") == 0) {
                     snprintf(expanded, sizeof(expanded), "\tpriv r0, r0, r0, 0\n");
