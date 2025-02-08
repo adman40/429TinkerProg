@@ -1,0 +1,4 @@
+; Test 2: Single macro instruction
+
+.code
+	clr r1

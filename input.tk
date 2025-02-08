@@ -1,8 +1,30 @@
+; Test 1: General case with mixed content
+
+.data
+    100
+    200
+
+:Label_A
+
 .code
-    in r4, r8
-    ld r12, 231268
-:L1
-    out r12, r13
-    ld r19, :L1
-    push r1
-    pop r2
+	; Standard instructions and macros
+	add r1, r2, r3
+	sub r4, r5, r6
+	clr r7
+	ld r8, :Label_B
+	push r9
+
+.data
+	300
+
+:Label_B
+
+.code
+	in r10, r11
+	out r12, r13
+	halt
+
+.code
+	; Additional code section to test multiple sections
+	mul r14, r15, r16
+	pop r17

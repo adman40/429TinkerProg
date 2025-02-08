@@ -1,0 +1,9 @@
+; Test 3: simple label usage 
+
+.data
+	12345
+
+:DATA_LABEL
+
+.code
+	ld r2, :DATA_LABEL
