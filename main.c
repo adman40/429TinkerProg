@@ -22,7 +22,6 @@ typedef struct HashNode {
 
 typedef struct {
     HashNode *buckets[NUM_HASH_BUCKETS];
-    int numLabels;
 } HashMap;
 
 unsigned int hashFunction(const char *key) {
@@ -38,7 +37,6 @@ void initializeHashMap(HashMap *map) {
     for (int i = 0; i < NUM_HASH_BUCKETS; i++) {
         map->buckets[i] = NULL;
     } 
-    map->numLabels = 0;
 }
 
 void hashMapInsert(HashMap *map, const char *key, const char *value) {
@@ -62,7 +60,6 @@ void hashMapInsert(HashMap *map, const char *key, const char *value) {
     strcpy(node->value, value);
     node->next = map->buckets[index];
     map->buckets[index] = node;
-    map->numLabels++;
 
 }
 
@@ -233,6 +230,57 @@ void collectLabels(const char *fileName, HashMap *labelMap) {
     fclose(inputFile);
 }
 
+// This function assumes that a label token begins with ':' and ends at the next comma or whitespace.
+// It scans the entire operand string and replaces any token that starts with ':' with its value from the hash map.
+void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
+    // We'll use a temporary buffer to build the new operand string.
+    char newOperands[100] = {0};
+    int firstToken = 1;
+
+    // Use strtok on a copy so we don't modify the original string structure unexpectedly.
+    char temp[100];
+    strncpy(temp, operands, sizeof(temp));
+    temp[sizeof(temp) - 1] = '\0';
+
+    // Tokenize by comma.
+    char *token = strtok(temp, ",");
+    while (token != NULL) {
+        // Trim leading/trailing whitespace from token.
+        while (*token && isspace((unsigned char)*token))
+            token++;
+        char *end = token + strlen(token) - 1;
+        while (end > token && isspace((unsigned char)*end)) {
+            *end = '\0';
+            end--;
+        }
+
+        char processedToken[50] = {0};
+        // If token starts with ':' assume it's a label.
+        if (token[0] == ':') {
+            // Look up the label in the hash map.
+            char *lookup = hashMapSearch(labelMap, token);
+            if (lookup != NULL) {
+                strncpy(processedToken, lookup, sizeof(processedToken)-1);
+            } else {
+                // If not found, keep the token as is.
+                strncpy(processedToken, token, sizeof(processedToken)-1);
+            }
+        } else {
+            strncpy(processedToken, token, sizeof(processedToken)-1);
+        }
+        
+        // Append to newOperands, adding a comma if needed.
+        if (!firstToken)
+            strncat(newOperands, ", ", sizeof(newOperands) - strlen(newOperands) - 1);
+        strncat(newOperands, processedToken, sizeof(newOperands) - strlen(newOperands) - 1);
+        
+        firstToken = 0;
+        token = strtok(NULL, ",");
+    }
+    // Copy the processed string back into operands.
+    strncpy(operands, newOperands, 100);
+    operands[99] = '\0';
+}
 
 char *parseFile(const char *fileName) {
     FILE *inputFile = fopen(fileName, "r");
@@ -313,26 +361,49 @@ char *parseFile(const char *fileName) {
             lastSection = currentSection;
         }
         else if (trimmed[0] == ':') {
-            // We assume that the label has already been processed and inserted into the hash map.
+            if (!isCode && !isData) {
+                perror("Error, label must be in scope of .code or .data");
+                free(outputBuffer);
+                fclose(inputFile);
+                return NULL;
+            }
             char label[50];
-            sscanf(trimmed, "%49s", label);
+            char memAddressString[20];
+            sscanf(line, ":%49s", label);
             trimWhitespace(label);
-            char *value = hashMapSearch(&labelMap, label);
-            if (value == NULL) {
-                fprintf(stderr, "Error: Label %s not found in hash map\n", label);
-                free(outputBuffer);
-                fclose(inputFile);
-                return NULL;
+            char *existing = hashMapSearch(&labelMap, label);
+            if (existing == NULL) {
+                if (memLabelCounter == 4096) {
+                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
+                    hashMapInsert(&labelMap, label, memAddressString);
+                } else {
+                    if (isCode) {
+                        memLabelCounter += 4;
+                    } else if (isData) {
+                        memLabelCounter += 8;
+                    }
+                    snprintf(memAddressString, sizeof(memAddressString), "%d", memLabelCounter);
+                    hashMapInsert(&labelMap, label, memAddressString);
+                }
+            } else {
+                strncpy(memAddressString, existing, sizeof(memAddressString));
+                memAddressString[sizeof(memAddressString)-1] = '\0';
             }
-            // Append the label's memory address (value) followed by a newline.
-            int n = snprintf(outputBuffer + outputLength, bufferSize - outputLength, "%s\n", value);
-            if (n < 0) {
-                fprintf(stderr, "Error formatting label output.\n");
-                free(outputBuffer);
-                fclose(inputFile);
-                return NULL;
+            
+            size_t lineLength = strlen(label) + strlen(memAddressString) + 4;  
+            while (outputLength + lineLength >= bufferSize) {
+                bufferSize *= 2;
+                char *temp = realloc(outputBuffer, bufferSize);
+                if (!temp) {
+                    perror("Error reallocating output buffer");
+                    free(outputBuffer);
+                    fclose(inputFile);
+                    return NULL;
+                }
+                outputBuffer = temp;
             }
-            outputLength += n;
+            snprintf(outputBuffer + outputLength, bufferSize - outputLength, "%s\n", memAddressString);
+            outputLength += lineLength;
         }
         else {
             if (line[0] != '\t' && strncmp(line, "    ", 4) != 0) {
@@ -580,6 +651,7 @@ char *parseFile(const char *fileName) {
                 }
                 
                 else {
+                    replaceMemoryAddresses(originalOperands, &labelMap);
                     if (originalOperands[0] != '\0')
                         snprintf(expanded, sizeof(expanded), "\t%s %s\n", opcode, originalOperands);
                     else
