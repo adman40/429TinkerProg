@@ -687,7 +687,7 @@ char* literalToBinary(Instruction instruction) {
         int literal = instruction.literal;
         for (int i = 11; i >= 0; i--) {
             output[i] = (literal & 1) ? '1' : '0';
-            literal >>= ;
+            literal >>= 1;
         }    
     }
     return output;
