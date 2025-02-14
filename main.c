@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdint.h>
+#include "uthash.h"
 
 #define NUM_HASH_BUCKETS 100
 
@@ -623,6 +624,134 @@ char *parseFile(const char *fileName) {
     }
     return outputBuffer;
 }
+
+typedef struct {
+    char instruction[50];
+    int binaryVal;
+    UT_hash_handle;
+} cmdToBinary;
+
+typedef struct { 
+    int opcode;
+    int registers[3];
+    int literal;
+    int hasLiteral;
+} Instruction;
+
+Instruction getInstruction(char *command, int r1, int r2, int r3, int literal) {
+    Instruction instruction;
+    instruction.opcode = blah; // implement hashmap to extract opcode here
+    instruction.registers[0] = r1;
+    instruction.registers[1] = r2;
+    instruction.registers[2] = r3;
+    instruction.literal = literal;
+    if (literal == NULL) {
+        instruction.hasLiteral = 0;
+    }
+    else {
+        instruction.hasLiteral = 1;
+    }
+    return instruction;
+}
+
+char* registerNumberToBinary(int decimalVal) {
+    char *output = malloc(6);
+    if (output == NULL) {
+        return NULL;
+    }
+    output[5] = '\0';
+    if (decimalVal == -1 || decimalVal == 0) {
+        for (int i = 0; i < 5; i++) {
+            output[i] = '0';
+        }
+    }
+    for (int i = 4; i >=0 ; i--) {
+        output[i] = (decimalVal & 1) ? '1' :'0';
+        decimalVal >>= 1;
+    }
+    return output;
+}
+
+char* literalToBinary(Instruction instruction) {
+    char *output = malloc(13);
+    if (output == NULL) {
+        return NULL;
+    }
+    output[5] = '\0';
+    if (!instruction.hasLiteral) {
+        for (int i = 0; i < 12; i++) {
+            output[i] = '0';
+        }    
+    }
+    else {
+        int literal = instruction.literal;
+        for (int i = 11; i >= 0; i--) {
+            output[i] = (literal & 1) ? '1' : '0';
+            literal >>= ;
+        }    
+    }
+    return output;
+}
+
+char* labelToBinary {
+    // implement
+}
+
+void getBinary(Instruction instruction, char*buffer, size_t size) {
+    snprintf(buffer, sizeof(buffer), "%d", instruction.opcode);
+    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[0]));
+    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[1]));
+    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[2]));
+    snprintf(buffer, sizeof(buffer), "%s", literalToBinary(instruction));
+}
+
+char *stage2Parse(const char* fileName) {
+    FILE *file = fopen(fileName, "r");
+    size_t bufferSize = (size_t)(getFileSize(file) * 1.5);
+    char *outputBuffer = (char*)malloc(file);
+    if (!outputBuffer) {
+        fprintf(stderr, "Error allocating output buffer");
+        fclose(file);
+        return NULL;
+    }
+    outputBuffer[0] = '\0';
+    char line[256];
+    int isCode = 0;
+    int isData = 0;
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char *trimmed = line;
+        while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
+        if (trimmed[0] == ';' || trimmed[0] == '\0' || trimmed[0] == '\t' || trimmed[0] == '\n') {
+            continue;
+        }
+        else if (trimmed[0] = '.') {
+            if (strncmp(trimmed, ".isCode", 7) == 0) {
+                isCode = 1;
+                isData = 0;
+            }
+            else {
+                isCode = 1;
+                isData = 0;
+            }
+        }
+        else if (trimmed[0] = ':') {
+            // put logic here for converting labels to binary
+        }
+        else {
+            if (isCode) {
+                // should be instructions
+            }
+            else {
+                // should just be integers or label refrences
+            }
+        }
+    }
+}
+
+
+// METHODS WANTED: 
+
+// MAIN VALIDATED PARSER
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
