@@ -696,10 +696,10 @@ char* intToBinary (char *numString) {
     if (!binary) {
         return NULL;
     }
-    for (int i = 63; i<=0;i--) {
-        binary[63-i] = (num & (1LL << i)) ? '1' : '0';
-    }
     binary[64] = '\0';
+    for (int i = 0; i < 64; i++) {
+        binary[i] = (num & (1LL << (63 - i))) ? '1' : '0';
+    }
     return binary;
 }
 
@@ -1010,6 +1010,20 @@ void getBinary(Instruction instruction, char*buffer, size_t size) {
     snprintf(buffer, sizeof(buffer), "%s", literalToBinary(instruction));
 }
 
+char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
+    while (requiredSize >= *bufferSize - 1) {
+        *bufferSize *= 2;
+        char *temp = realloc(buffer, *bufferSize);
+        if (!temp) {
+            fprintf(stderr, "Error reallocating output buffer\n");
+            free(buffer);
+            return NULL;
+        }
+        buffer = temp;
+    }
+    return buffer;
+}
+
 char *stage2Parse(const char* fileName) {
     FILE *file = fopen(fileName, "r");
     size_t bufferSize = (size_t)(getFileSize(file) * 1.5);
@@ -1033,6 +1047,8 @@ char *stage2Parse(const char* fileName) {
             continue;
         }
         else if (strncmp(trimmed, "hlt", 3) == 0) {
+            size_t length = strlen("00000000000000000000000000000000");
+            outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + length);
             strncat(outputBuffer, "00000000000000000000000000000000", bufferSize - strlen(outputBuffer) - 1);
         }
         else if (trimmed[0] == '.') {
@@ -1048,13 +1064,15 @@ char *stage2Parse(const char* fileName) {
         else if (line[0] == '\t' || line[0] == ' ') {
             if (isCode) {
                 Instruction inst = parseLine(line);
-                char binaryInst[50] = {0};
+                char binaryInst[1000] = {0};
                 getBinary(inst, binaryInst, sizeof(binaryInst));
+                outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binaryInst));
                 strncat(outputBuffer, binaryInst, bufferSize - strlen(outputBuffer) - 1);
             }
             else {
                 char *binary = intToBinary(trimmed);
                 if (binary) {
+                    outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binary));
                     strncat(outputBuffer, binary, bufferSize - strlen(outputBuffer) - 1);
                     free(binary);
                 }
