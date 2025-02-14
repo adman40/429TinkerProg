@@ -632,20 +632,23 @@ typedef struct {
     int hasLiteral;
 } Instruction;
 
-Instruction getInstruction(char *command, int r1, int r2, int r3, int literal) {
-    Instruction instruction;
-    instruction.opcode = blah; // implement hashmap to extract opcode here
+Instruction getInstructionWLiteral(int opcode, int r1, int r2, int r3, int literal) {
+    Instruction instruction;// implement hashmap to extract opcode here
+    instruction.opcode = opcode;
     instruction.registers[0] = r1;
     instruction.registers[1] = r2;
     instruction.registers[2] = r3;
     instruction.literal = literal;
-    if (literal == NULL) {
-        instruction.hasLiteral = 0;
-    }
-    else {
-        instruction.hasLiteral = 1;
-    }
-    return instruction;
+    instruction.hasLiteral = 1;
+}
+
+Instruction getInstructionNoLiteral(int opcode, int r1, int r2, int r3) {
+    Instruction instruction;// implement hashmap to extract opcode here
+    instruction.opcode = opcode;
+    instruction.registers[0] = r1;
+    instruction.registers[1] = r2;
+    instruction.registers[2] = r3;
+    instruction.hasLiteral = 0;
 }
 
 char* registerNumberToBinary(int decimalVal) {
@@ -702,6 +705,232 @@ typedef struct {
     UT_hash_handle hh;
 } cmdToBinary;
 
+int parseReg(const char *token) {
+    if (token[0] == 'r') {
+        return atoi(token + 1);
+    }
+    return -1;
+}
+
+struct Entry {
+        const char *instruction;
+        int binaryVal;
+    };
+    
+struct Entry cmdBinaryCombos[] = {
+        {"add", 11000},
+        {"addi", 11001},
+        {"sub", 11010},
+        {"subi", 11011},
+        {"mul", 11100},
+        {"div", 11101},
+        {"and", 00000},
+        {"or", 00001},
+        {"xor", 00010},
+        {"not", 00011},
+        {"shftr", 00100},
+        {"shftri", 00101},
+        {"shftl", 00110},
+        {"shftli", 00111},
+        {"br", 01000},
+        {"brrR", 01001},
+        {"brrL", 01010},
+        {"brnz", 01011},
+        {"call", 01100},
+        {"return", 01101},
+        {"brgt", 01110},
+        {"priv", 01111},
+        {"mov1", 10000},
+        {"mov2", 10001},
+        {"mov3", 10010},
+        {"mov4", 10011},
+        {"addf", 10100},
+        {"subf", 10101},
+        {"mulf", 10110},
+        {"divf", 10111}
+};
+
+void removeWhitespace(char *str) {
+    char *src = str, *dst = str;
+    while (*src != '\0') {
+        if (!isspace((unsigned char)*src)) {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
+}
+
+void insertMovIndicator(char movNumber, char *op, size_t bufSize) {
+    if (strncmp(op, "mov", 3) != 0) {
+        return;
+    }
+    if (op[3] == '(') {
+        size_t len = strlen(op);
+        if (len + 1 >= bufSize) {
+            fprintf(stderr, "Buffer too small to insert variant indicator.\n");
+            return;
+        }
+        for (int i = (int)len; i >= 3; i--) {
+            op[i+1] = op[i];
+        }
+        op[3] = movNumber;
+    }
+}
+
+size_t n = sizeof(cmdBinaryCombos) / sizeof(cmdBinaryCombos[0]);
+
+Instruction parseLine(const char *line) {
+    cmdToBinary *map = NULL;
+    for (size_t i = 0; i < n; i++) {
+        cmdToBinary *cmd = malloc(sizeof(cmdToBinary));
+        if (cmd == NULL) {
+            fprintf(stderr, "Error Allocating Memory");
+            return;
+        }
+        strncpy(cmd->instruction, cmdBinaryCombos[i].instruction, sizeof(cmd->instruction) - 1);
+        cmd->instruction[sizeof(cmd->instruction) - 1] = '\0';
+        cmd->binaryVal = cmdBinaryCombos[i].binaryVal;
+        HASH_ADD_STR(map, instruction, cmd);
+    }
+    char *copy = strdup(line);
+    if (!copy) {
+        fprintf(stderr, "Mem Allocation Error");
+        return;
+    }
+    char *token = strtok(copy, " \t");
+    if (!token) {
+        free(copy);
+        return;
+    }
+    char op[50];
+    strncpy(op, token, sizeof(op) - 1);
+    op[sizeof(op) -1] = '\0';
+    int registers[3] = {-1, -1, -1};
+    int regCount = 0;
+    int literal = 0;
+    int hasLiteral = 0;
+    if (strncmp(op, "mov", 3) == 0) {
+        removeWhitespace(op);
+        if (op[3] = '(') {
+            insertMovIndicator('4', op, sizeof(op));
+            const char *p = strchr(p, '(');
+            const char *q = strchr(q, ')');
+            size_t len = q - p - 1;
+            char reg1s[50];
+            if (len >= sizeof(reg1s)) {
+                len = sizeof(reg1s) - 1;
+            }
+            strncpy(reg1s, p + 1, len);
+            reg1s[len] = '\0';
+            p = strchr(p, '(');
+            q = strchr(q, ')');
+            len = q - p - 1;
+            char literals[50];
+            if (len >= sizeof(reg1s)) {
+                len = sizeof(reg1s) - 1;
+            }
+            strncpy(literals, p + 1, len);
+            literals[len] = '\0';
+            const char *comma = strchr(q, ',');
+            comma++;
+            while (*comma && isspace((unsigned char)*comma)) {
+                comma++;
+            }
+            char reg2s[50];
+            strncpy(reg2s, comma, sizeof(reg2s) - 1);
+            reg2s[sizeof(reg2s) - 1] = '\0';
+            int reg1 = parseRegister(reg1s);
+            int reg2 = parseRegister(reg2s);
+            int literal = atoi(literals);
+            return getInstructionWLiteral("mov4", reg1, reg2, -1, literal);
+        }
+        else if (strchr(op, '(') != NULL){
+            insertMovIndicator('1', op, sizeof(op));
+            const char *commaPosition = strchr(op, ',');
+            size_t reg1Len = commaPosition - (op + strlen("mov1"));
+            if (reg1Len >= 50) reg1Len = 49;
+            char reg1s[50];
+            strncpy(reg1s, op + strlen("mov1"), reg1Len);
+            reg1s[reg1Len] = '\0';
+            const char *remaining = commaPosition + 1;
+            while (*remaining && isspace((unsigned char)*remaining))
+                remaining++;
+            const char *startReg2 = remaining;
+            const char *endReg2 = strchr(startReg2, ')');
+            size_t reg2Len = endReg2 - startReg2;
+            if (reg2Len >= 50) reg2Len = 49;
+            char reg2s[50];
+            strncpy(reg2s, startReg2, reg2Len);
+            reg2s[reg2Len] = '\0';
+            const char *afterReg2 = endReg2 + 1;
+            while (*afterReg2 && isspace((unsigned char)*afterReg2))
+                afterReg2++;
+            if (*afterReg2 != '(') {
+                fprintf(stderr, "Error: Expected '(' for literal\n");
+                return;
+            }
+            const char *startLiteral = afterReg2 + 1;
+            const char *endLiteral = strchr(startLiteral, ')');
+            size_t literalLen = endLiteral - startLiteral;
+            if (literalLen >= 50) literalLen = 49;
+            char literals[50];
+            strncpy(literals, startLiteral, literalLen);
+            literals[literalLen] = '\0';
+            int reg1 = parseRegister(reg1s);
+            int reg2 = parseRegister(reg2s);
+            int literal = atoi(literals);
+            getInstructionWLiteral("mov1", reg1, reg2, -1, literal);
+        }
+    }
+    while ((token = strtok(NULL, ",  \t")) != NULL) {
+        if (token[0] == 'r') {
+            if (regCount < 3) {
+                registers[regCount] = parseReg(token);
+                regCount++;
+            }
+        }
+        else {
+            //if op = mov2 -> op = mov3
+            hasLiteral = 1;
+            literal = atoi(token);
+        }
+    }
+    cmdToBinary *found = NULL;
+    if (strncmp(op, "mov", 3) == 0) {
+        if (hasLiteral){
+            strcpy(op, "mov3");
+        }
+        else {
+            strcpy(op, "mov2");
+        }
+    }
+    HASH_FIND_STR(map, op, found);
+    if (!found) {
+        fprintf(stderr, "Invalid Op");
+        free(copy);
+        cmdToBinary *current, *tmp;
+        HASH_ITER(hh, map, current, tmp) {
+            HASH_DEL(map, current);
+            free(current);
+        }
+        return;
+    }
+    int opBinary = found->binaryVal;
+    cmdToBinary *current, *tmp;
+    HASH_ITER(hh, map, current, tmp) {
+        HASH_DEL(map, current);
+        free(current);
+    }
+    free(copy);
+    if (hasLiteral) {
+        return getInstructionWLiteral(opBinary, registers[0], registers[1], registers[2], literal);
+    }
+    else {
+        return getInstructionNoLiteral(opBinary, registers[0], registers[1], registers[2]);
+    }
+}
+
 void getBinary(Instruction instruction, char*buffer, size_t size) {
     snprintf(buffer, sizeof(buffer), "%d", instruction.opcode);
     snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[0]));
@@ -726,58 +955,6 @@ char *stage2Parse(const char* fileName) {
     int isData = 0;
     cmdToBinary *map = NULL;
 
-    struct Entry {
-        const char *instruction;
-        int binaryVal;
-    };
-    
-    struct Entry cmdBinaryCombos[] = {
-        {"add", 11000},
-        {"addi", 11001},
-        {"sub", 11010},
-        {"subi", 11011},
-        {"mul", 11100},
-        {"div", 11101},
-        {"and", 00000},
-        {"or", 00001},
-        {"xor", 00010},
-        {"not", 00011},
-        {"shftr", 00100},
-        {"shftri", 00101},
-        {"shftl", 00110},
-        {"shftli", 00111},
-        {"br", 01000},
-        {"brrR", 01001},
-        {"brrI", 01010},
-        {"brnz", 01011},
-        {"call", 01100},
-        {"return", 01101},
-        {"brgt", 01110},
-        {"priv", 01111},
-        {"mov1", 10000},
-        {"mov2", 10001},
-        {"mov3", 10010},
-        {"mov4", 10011},
-        {"addf", 10100},
-        {"subf", 10101},
-        {"mulf", 10110},
-        {"divf", 10111}
-    };
-
-    size_t n = sizeof(cmdBinaryCombos) / sizeof(cmdBinaryCombos[0]);
-
-    for (size_t i = 0; i < n; i++) {
-        cmdToBinary *cmd = malloc(sizeof(cmdToBinary));
-        if (cmd == NULL) {
-            fprintf(stderr, "Error Allocating Memory");
-            return NULL;
-        }
-        strncpy(cmd->instruction, cmdBinaryCombos[i].instruction, sizeof(cmd->instruction) - 1);
-        cmd->instruction[sizeof(cmd->instruction) - 1] = '\0';
-        cmd->binaryVal = cmdBinaryCombos[i].binaryVal;
-        HASH_ADD_STR(map, instruction, cmd);
-    }
-
     while (fgets(line, sizeof(line), file) != NULL) {
         char *trimmed = line;
         while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
@@ -799,10 +976,21 @@ char *stage2Parse(const char* fileName) {
         }
         else {
             if (isCode) {
-                // should be instructions
+                getBinary(parseLine(line), outputBuffer, sizeof(outputBuffer));
+
+                // parse line and extract command and each opperand
+                // initialize struct
+                // call helper function to get binary
+                // set opcode
+                // append binary to buffer
             }
             else {
-                // should just be integers or label refrences
+                if (trimmed[0] == ':') {
+                    // handle label
+                }
+                else {
+                    // convert integer to binary and append to output buffer
+                }
             }
         }
     }
