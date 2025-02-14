@@ -674,7 +674,7 @@ char* literalToBinary(Instruction instruction) {
     if (output == NULL) {
         return NULL;
     }
-    output[5] = '\0';
+    output[12] = '\0';
     if (!instruction.hasLiteral) {
         for (int i = 0; i < 12; i++) {
             output[i] = '0';
@@ -690,8 +690,17 @@ char* literalToBinary(Instruction instruction) {
     return output;
 }
 
-char* labelToBinary {
-    // implement
+char* intToBinary (int num) {
+    char *output = malloc(33);
+    if (output == NULL) {
+        return NULL;
+    }
+    output[32] = '\0';
+    for (int i = 31; i >= 0;   i--) {
+        output[i] = (num & 1) ? '1' : '0';
+        num >>= 1;
+    }
+    return output;
 }
 
 struct Entry {
@@ -971,27 +980,16 @@ char *stage2Parse(const char* fileName) {
                 isData = 0;
             }
         }
-        else if (trimmed[0] = ':') {
-            // put logic here for converting labels to binary
-        }
-        else {
+        else if (trimmed[0] = '\t') {
             if (isCode) {
-                getBinary(parseLine(line), outputBuffer, sizeof(outputBuffer));
-
-                // parse line and extract command and each opperand
-                // initialize struct
-                // call helper function to get binary
-                // set opcode
-                // append binary to buffer
+                getBinary(parseLine(line), outputBuffer, sizeof(outputBuffer)); // should append to buffer
             }
             else {
-                if (trimmed[0] == ':') {
-                    // handle label
-                }
-                else {
-                    // convert integer to binary and append to output buffer
-                }
+                intToBinary(); // apend this to the output
             }
+        }
+        else {
+            continue;
         }
     }
 }
