@@ -625,12 +625,6 @@ char *parseFile(const char *fileName) {
     return outputBuffer;
 }
 
-typedef struct {
-    char instruction[50];
-    int binaryVal;
-    UT_hash_handle;
-} cmdToBinary;
-
 typedef struct { 
     int opcode;
     int registers[3];
@@ -697,6 +691,17 @@ char* labelToBinary {
     // implement
 }
 
+struct Entry {
+    const char *instruction;
+    int binaryVal;
+};
+
+typedef struct {
+    char instruction[50];
+    int binaryVal;
+    UT_hash_handle hh;
+} cmdToBinary;
+
 void getBinary(Instruction instruction, char*buffer, size_t size) {
     snprintf(buffer, sizeof(buffer), "%d", instruction.opcode);
     snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[0]));
@@ -706,9 +711,10 @@ void getBinary(Instruction instruction, char*buffer, size_t size) {
 }
 
 char *stage2Parse(const char* fileName) {
+
     FILE *file = fopen(fileName, "r");
     size_t bufferSize = (size_t)(getFileSize(file) * 1.5);
-    char *outputBuffer = (char*)malloc(file);
+    char *outputBuffer = (char*)malloc(bufferSize);
     if (!outputBuffer) {
         fprintf(stderr, "Error allocating output buffer");
         fclose(file);
@@ -718,6 +724,60 @@ char *stage2Parse(const char* fileName) {
     char line[256];
     int isCode = 0;
     int isData = 0;
+    cmdToBinary *map = NULL;
+
+    struct Entry {
+        const char *instruction;
+        int binaryVal;
+    };
+    
+    struct Entry cmdBinaryCombos[] = {
+        {"add", 11000},
+        {"addi", 11001},
+        {"sub", 11010},
+        {"subi", 11011},
+        {"mul", 11100},
+        {"div", 11101},
+        {"and", 00000},
+        {"or", 00001},
+        {"xor", 00010},
+        {"not", 00011},
+        {"shftr", 00100},
+        {"shftri", 00101},
+        {"shftl", 00110},
+        {"shftli", 00111},
+        {"br", 01000},
+        {"brrR", 01001},
+        {"brrI", 01010},
+        {"brnz", 01011},
+        {"call", 01100},
+        {"return", 01101},
+        {"brgt", 01110},
+        {"priv", 01111},
+        {"mov1", 10000},
+        {"mov2", 10001},
+        {"mov3", 10010},
+        {"mov4", 10011},
+        {"addf", 10100},
+        {"subf", 10101},
+        {"mulf", 10110},
+        {"divf", 10111}
+    };
+
+    size_t n = sizeof(cmdBinaryCombos) / sizeof(cmdBinaryCombos[0]);
+
+    for (size_t i = 0; i < n; i++) {
+        cmdToBinary *cmd = malloc(sizeof(cmdToBinary));
+        if (cmd == NULL) {
+            fprintf(stderr, "Error Allocating Memory");
+            return NULL;
+        }
+        strncpy(cmd->instruction, cmdBinaryCombos[i].instruction, sizeof(cmd->instruction) - 1);
+        cmd->instruction[sizeof(cmd->instruction) - 1] = '\0';
+        cmd->binaryVal = cmdBinaryCombos[i].binaryVal;
+        HASH_ADD_STR(map, instruction, cmd);
+    }
+
     while (fgets(line, sizeof(line), file) != NULL) {
         char *trimmed = line;
         while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
