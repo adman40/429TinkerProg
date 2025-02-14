@@ -633,22 +633,24 @@ typedef struct {
 } Instruction;
 
 Instruction getInstructionWLiteral(int opcode, int r1, int r2, int r3, int literal) {
-    Instruction instruction;
+    Instruction instruction = {0};
     instruction.opcode = opcode;
     instruction.registers[0] = r1;
     instruction.registers[1] = r2;
     instruction.registers[2] = r3;
     instruction.literal = literal;
     instruction.hasLiteral = 1;
+    return instruction;
 }
 
 Instruction getInstructionNoLiteral(int opcode, int r1, int r2, int r3) {
-    Instruction instruction;
+    Instruction instruction = {0};
     instruction.opcode = opcode;
     instruction.registers[0] = r1;
     instruction.registers[1] = r2;
     instruction.registers[2] = r3;
     instruction.hasLiteral = 0;
+    return instruction;
 }
 
 char* registerNumberToBinary(int decimalVal) {
@@ -785,6 +787,7 @@ void insertMovIndicator(char movNumber, char *op, size_t bufSize) {
 size_t n = sizeof(cmdBinaryCombos) / sizeof(cmdBinaryCombos[0]);
 
 Instruction parseLine(const char *line) {
+    printf("Parsing line: %s\n", line);
     cmdToBinary *map = NULL;
     Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
     for (size_t i = 0; i < n; i++) {
@@ -851,7 +854,8 @@ Instruction parseLine(const char *line) {
                 free(current);
             }
             free(copy);
-            return getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
+            Instruction inst = getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
+            return inst;
         }
         else if (strchr(copy, '(') != NULL) {
             const char *comma = strchr(copy, ',');
@@ -905,7 +909,8 @@ Instruction parseLine(const char *line) {
                 return errorInst;
             }
 
-            return getInstructionWLiteral(found->binaryVal, reg1, reg2, -1, literal);
+            Instruction inst = getInstructionWLiteral(found->binaryVal, reg1, reg2, -1, literal);
+            return inst;
         }
         else {
             cmdToBinary *found = NULL;
@@ -994,21 +999,45 @@ Instruction parseLine(const char *line) {
         free(current);
     }
     free(copy);
+
+    printf("Parsed instruction: opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
+           found->binaryVal, registers[0], registers[1], registers[2], literal);
+
     if (hasLiteral) {
-        return getInstructionWLiteral(opBinary, registers[0], registers[1], registers[2], literal);
+        Instruction inst = getInstructionWLiteral(opBinary, registers[0], registers[1], registers[2], literal);
+        return inst;
     }
     else {
-        return getInstructionNoLiteral(opBinary, registers[0], registers[1], registers[2]);
+        Instruction inst = getInstructionNoLiteral(opBinary, registers[0], registers[1], registers[2]);
+        return inst;
     }
 }
 
-void getBinary(Instruction instruction, char*buffer, size_t size) {
-    snprintf(buffer, sizeof(buffer), "%d", instruction.opcode);
-    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[0]));
-    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[1]));
-    snprintf(buffer, sizeof(buffer), "%s", registerNumberToBinary(instruction.registers[2]));
-    snprintf(buffer, sizeof(buffer), "%s", literalToBinary(instruction));
+void getBinary(Instruction instruction, char *buffer, size_t size) {
+    printf("Encoding instruction: opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
+           instruction.opcode, instruction.registers[0], instruction.registers[1], instruction.registers[2], instruction.literal);
+
+    char opcodeBinary[6], r1Binary[6], r2Binary[6], r3Binary[6], literalBinary[13];
+
+    snprintf(opcodeBinary, sizeof(opcodeBinary), "%05d", instruction.opcode);
+    snprintf(r1Binary, sizeof(r1Binary), "%s", registerNumberToBinary(instruction.registers[0]));
+    snprintf(r2Binary, sizeof(r2Binary), "%s", registerNumberToBinary(instruction.registers[1]));
+    snprintf(r3Binary, sizeof(r3Binary), "%s", registerNumberToBinary(instruction.registers[2]));
+    snprintf(literalBinary, sizeof(literalBinary), "%s", literalToBinary(instruction));
+
+    printf("Binary Components:\n");
+    printf("Opcode: %s\n", opcodeBinary);
+    printf("R1: %s\n", r1Binary);
+    printf("R2: %s\n", r2Binary);
+    printf("R3: %s\n", r3Binary);
+    printf("Literal: %s\n", literalBinary);
+
+    snprintf(buffer + strlen(buffer), size - strlen(buffer), "%s%s%s%s%s",
+             opcodeBinary, r1Binary, r2Binary, r3Binary, literalBinary);
+
+    printf("Final Binary Output: %s\n", buffer);
 }
+
 
 char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
     while (requiredSize >= *bufferSize - 1) {
@@ -1064,6 +1093,8 @@ char *stage2Parse(const char* fileName) {
         else if (line[0] == '\t' || line[0] == ' ') {
             if (isCode) {
                 Instruction inst = parseLine(line);
+                printf("Instruction after parseLine(): opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
+               inst.opcode, inst.registers[0], inst.registers[1], inst.registers[2], inst.literal);
                 char binaryInst[1000] = {0};
                 getBinary(inst, binaryInst, sizeof(binaryInst));
                 outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binaryInst));
