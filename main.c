@@ -1013,31 +1013,15 @@ Instruction parseLine(const char *line) {
     }
 }
 
-void getBinary(Instruction instruction, char *buffer, size_t size) {
-    printf("Encoding instruction: opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
-           instruction.opcode, instruction.registers[0], instruction.registers[1], instruction.registers[2], instruction.literal);
-
-    char opcodeBinary[6], r1Binary[6], r2Binary[6], r3Binary[6], literalBinary[13];
-
-    snprintf(opcodeBinary, sizeof(opcodeBinary), "%05d", instruction.opcode);
-    snprintf(r1Binary, sizeof(r1Binary), "%s", registerNumberToBinary(instruction.registers[0]));
-    snprintf(r2Binary, sizeof(r2Binary), "%s", registerNumberToBinary(instruction.registers[1]));
-    snprintf(r3Binary, sizeof(r3Binary), "%s", registerNumberToBinary(instruction.registers[2]));
-    snprintf(literalBinary, sizeof(literalBinary), "%s", literalToBinary(instruction));
-
-    printf("Binary Components:\n");
-    printf("Opcode: %s\n", opcodeBinary);
-    printf("R1: %s\n", r1Binary);
-    printf("R2: %s\n", r2Binary);
-    printf("R3: %s\n", r3Binary);
-    printf("Literal: %s\n", literalBinary);
-
-    snprintf(buffer + strlen(buffer), size - strlen(buffer), "%s%s%s%s%s",
-             opcodeBinary, r1Binary, r2Binary, r3Binary, literalBinary);
-
-    printf("Final Binary Output: %s\n", buffer);
+void getBinary(Instruction instruction, uint32_t *binary) {
+    *binary = (instruction.opcode << 27) |
+              ((instruction.registers[0] & 0x1F) << 22) |
+              ((instruction.registers[1] & 0x1F) << 17) |  
+              ((instruction.registers[2] & 0x1F) << 12) | 
+              (instruction.literal & 0xFFF); 
+    
+    printf("Encoded Binary: %08X\n", *binary);
 }
-
 
 char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
     while (requiredSize >= *bufferSize - 1) {
@@ -1053,72 +1037,126 @@ char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
     return buffer;
 }
 
-char *stage2Parse(const char* fileName) {
+void *stage2Parse(const char* fileName, const char* outputFile) {
     FILE *file = fopen(fileName, "r");
-    size_t bufferSize = (size_t)(getFileSize(file) * 1.5);
-    char *outputBuffer = (char*)malloc(bufferSize);
-    if (!outputBuffer) {
-        fprintf(stderr, "Error allocating output buffer");
+    if (!file) {
+        fprintf(stderr, "Error opening file: %s\n", fileName);
+        return NULL;
+    }
+
+    FILE *outFile = fopen(outputFile, "wb");
+    if (!outFile) {
+        fprintf(stderr, "Error opening output file: %s\n", outputFile);
         fclose(file);
         return NULL;
     }
-    outputBuffer[0] = '\0';
+
     char line[256];
     int isCode = 0;
-    int isData = 0;
-    cmdToBinary *map = NULL;
-
+    
     while (fgets(line, sizeof(line), file) != NULL) {
         printf("stage2Parse Read: %s", line);
+        
         char *trimmed = line;
-        while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
-        if (trimmed[0] == ';' || trimmed[0] == '\0' || trimmed[0] == '\t' || trimmed[0] == '\n') {
+        while (*trimmed == ' ' || *trimmed == '\t') {
+            trimmed++;
+        }
+        
+        if (trimmed[0] == ';' || trimmed[0] == '\0' || trimmed[0] == '\n') {
+            continue; 
+        }
+
+        if (strncmp(trimmed, ".code", 5) == 0) {
+            isCode = 1;
+            continue;
+        } else if (strncmp(trimmed, ".data", 5) == 0) {
+            isCode = 0;
             continue;
         }
-        else if (strncmp(trimmed, "hlt", 3) == 0) {
-            size_t length = strlen("00000000000000000000000000000000");
-            outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + length);
-            strncat(outputBuffer, "00000000000000000000000000000000", bufferSize - strlen(outputBuffer) - 1);
-        }
-        else if (trimmed[0] == '.') {
-            if (strncmp(trimmed, ".code", 5) == 0) {
-                isCode = 1;
-                isData = 0;
-            }
-            else {
-                isCode = 0;
-                isData = 1;
-            }
-        }
-        else if (line[0] == '\t' || line[0] == ' ') {
-            if (isCode) {
-                Instruction inst = parseLine(line);
-                printf("Instruction after parseLine(): opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
-               inst.opcode, inst.registers[0], inst.registers[1], inst.registers[2], inst.literal);
-                char binaryInst[1000] = {0};
-                getBinary(inst, binaryInst, sizeof(binaryInst));
-                outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binaryInst));
-                strncat(outputBuffer, binaryInst, bufferSize - strlen(outputBuffer) - 1);
-            }
-            else {
-                char *binary = intToBinary(trimmed);
-                if (binary) {
-                    outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binary));
-                    strncat(outputBuffer, binary, bufferSize - strlen(outputBuffer) - 1);
-                    free(binary);
-                }
-            }
-        }
-        else {
-            continue;
+
+        if (isCode) {
+            Instruction inst = parseLine(line);
+            uint32_t binaryInst;
+            getBinary(inst, &binaryInst); 
+            fwrite(&binaryInst, sizeof(uint32_t), 1, outFile);
+        } else {
+            uint64_t dataValue = strtoull(trimmed, NULL, 10);
+            fwrite(&dataValue, sizeof(uint64_t), 1, outFile);
         }
     }
+
     fclose(file);
-    if (strlen(outputBuffer) == 0) {
-    fprintf(stderr, "Error: stage2Parse produced an empty outputBuffer!\n");
+    fclose(outFile);
+    
+    printf("Binary file successfully written to %s\n", outputFile);
 }
-    return outputBuffer;
-}
+
+// char *stage2Parse(const char* fileName) {
+//     FILE *file = fopen(fileName, "r");
+//     size_t bufferSize = (size_t)(getFileSize(file) * 1.5);
+//     char *outputBuffer = (char*)malloc(bufferSize);
+//     if (!outputBuffer) {
+//         fprintf(stderr, "Error allocating output buffer");
+//         fclose(file);
+//         return NULL;
+//     }
+//     outputBuffer[0] = '\0';
+//     char line[256];
+//     int isCode = 0;
+//     int isData = 0;
+//     cmdToBinary *map = NULL;
+
+//     while (fgets(line, sizeof(line), file) != NULL) {
+//         printf("stage2Parse Read: %s", line);
+//         char *trimmed = line;
+//         while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
+//         if (trimmed[0] == ';' || trimmed[0] == '\0' || trimmed[0] == '\t' || trimmed[0] == '\n') {
+//             continue;
+//         }
+//         else if (strncmp(trimmed, "hlt", 3) == 0) {
+//             size_t length = strlen("00000000000000000000000000000000");
+//             outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + length);
+//             strncat(outputBuffer, "00000000000000000000000000000000", bufferSize - strlen(outputBuffer) - 1);
+//         }
+//         else if (trimmed[0] == '.') {
+//             if (strncmp(trimmed, ".code", 5) == 0) {
+//                 isCode = 1;
+//                 isData = 0;
+//             }
+//             else {
+//                 isCode = 0;
+//                 isData = 1;
+//             }
+//         }
+//         else if (line[0] == '\t' || line[0] == ' ') {
+//             if (isCode) {
+//                 Instruction inst = parseLine(line);
+//                 printf("Instruction after parseLine(): opcode=%d, r1=%d, r2=%d, r3=%d, literal=%d\n",
+//                inst.opcode, inst.registers[0], inst.registers[1], inst.registers[2], inst.literal);
+//                 char binaryInst[1000] = {0};
+//                 getBinary(inst, binaryInst, sizeof(binaryInst));
+//                 outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binaryInst));
+//                 strncat(outputBuffer, binaryInst, bufferSize - strlen(outputBuffer) - 1);
+//             }
+//             else {
+//                 char *binary = intToBinary(trimmed);
+//                 if (binary) {
+//                     outputBuffer = resizeBuffer(outputBuffer, &bufferSize, strlen(outputBuffer) + strlen(binary));
+//                     strncat(outputBuffer, binary, bufferSize - strlen(outputBuffer) - 1);
+//                     free(binary);
+//                 }
+//             }
+//         }
+//         else {
+//             continue;
+//         }
+//     }
+//     fclose(file);
+//     if (strlen(outputBuffer) == 0) {
+//     fprintf(stderr, "Error: stage2Parse produced an empty outputBuffer!\n");
+// }
+//     return outputBuffer;
+// }
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -1126,16 +1164,19 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    char *intermediateOutput = parseFile(argv[1]);   
+    const char *inputFile = argv[1];
+    const char *outputFile = argv[2];
+
+    char *intermediateOutput = parseFile(inputFile);
     if (!intermediateOutput) {
-        fprintf(stderr, "Error processing file.\n");
+        fprintf(stderr, "Error processing file in first pass.\n");
         return EXIT_FAILURE;
     }
 
-    char tempFile[] = "tempOutput.txt";
+    const char *tempFile = "tempOutput.txt";
     FILE *temp = fopen(tempFile, "w");
     if (!temp) {
-        fprintf(stderr, "Error creating temporary file.\n");
+        fprintf(stderr, "Error creating temporary file: %s\n", tempFile);
         free(intermediateOutput);
         return EXIT_FAILURE;
     }
@@ -1145,46 +1186,21 @@ int main(int argc, char *argv[]) {
 
     printf("Checking contents of tempOutput.txt...\n");
 
-FILE *debugFile = fopen(tempFile, "r");
-if (!debugFile) {
-    fprintf(stderr, "Error: Could not open tempOutput.txt for reading.\n");
-    return EXIT_FAILURE;
-}
-
-char debugLine[256];
-while (fgets(debugLine, sizeof(debugLine), debugFile)) {
-    printf("%s", debugLine); // Print the file contents to the console
-}
-fclose(debugFile);
-
-    char *binaryString = stage2Parse(tempFile);
-    if (!binaryString) {
-        fprintf(stderr, "Error processing intermediate output in second stage.\n");
-        return EXIT_FAILURE;
-    }
-    printf("Binary String Output: %s\n", binaryString);
-
-    FILE *outputFile = fopen(argv[2], "wb");
-
-    if (!outputFile) {
-        fprintf(stderr, "Error opening output file for writing.\n");
-        free(binaryString);
+    FILE *debugFile = fopen(tempFile, "r");
+    if (!debugFile) {
+        fprintf(stderr, "Error: Could not open tempOutput.txt for reading.\n");
         return EXIT_FAILURE;
     }
 
-    size_t binaryLength = strlen(binaryString);
-    for (size_t i = 0; i < binaryLength; i += 8) {
-        char byteString[9] = {0};
-        strncpy(byteString, binaryString + i, 8);
-        uint8_t byte = (uint8_t)strtol(byteString, NULL, 2);
-        fwrite(&byte, sizeof(uint8_t), 1, outputFile);
+    char debugLine[256];
+    while (fgets(debugLine, sizeof(debugLine), debugFile)) {
+        printf("%s", debugLine);
     }
+    fclose(debugFile);
 
-    fclose(outputFile);
-    free(binaryString);
-    remove(tempFile);
-    printf("Binary file successfully written to %s\n", argv[2]);
+    stage2Parse(tempFile, outputFile);
+
+    remove(tempFile); 
+    printf("Binary file successfully written to %s\n", outputFile);
     return EXIT_SUCCESS;
-
 }
-
