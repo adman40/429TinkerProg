@@ -1,1 +1,1 @@
-gcc main.c -o ./hw4
+gcc main.c -o ./hw5
