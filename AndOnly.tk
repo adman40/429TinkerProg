@@ -1,2 +1,2 @@
 .code
-    and r5, r7, r9
+    addi r5, 10
