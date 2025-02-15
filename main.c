@@ -801,6 +801,7 @@ uint64_t my_htobe64(uint64_t host)
 
 Instruction parseLine(const char *line) {
     printf("Parsing line: %s\n", line);
+    char *lineCopy = strdup(line);
 
     char *copy = strdup(line);
     if (!copy) {
@@ -818,6 +819,7 @@ Instruction parseLine(const char *line) {
 
     char op[50] = {0};
     strncpy(op, token, sizeof(op)-1);
+    op[strcspn(op, "\n")] = '\0';
 
     int registers[3] = {0, 0, 0};
     int regCount = 0;
@@ -825,13 +827,16 @@ Instruction parseLine(const char *line) {
     int hasLiteral = 0;
     
     if (strncmp(op, "mov", 3) == 0) {
-        removeWhitespace(copy);
-        if (copy[3] == '(') {
-            const char *p = strchr(copy, '(');
+        printf("I FIRST WAS REACHED");
+        removeWhitespace(lineCopy);
+        printf("%s\n", lineCopy);
+        if (lineCopy[3] == '(') {
+            printf("I WAS REACHED");
+            const char *p = strchr(lineCopy, '(');
             const char *q = strchr(p, ')');
             if (!p || !q) {
                 fprintf(stderr, "Error parsing mov4 instruction\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
@@ -844,7 +849,7 @@ Instruction parseLine(const char *line) {
             q = strchr(p, ')');
             if (!p || !q) {
                 fprintf(stderr, "Error parsing mov4 literal\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
@@ -856,7 +861,7 @@ Instruction parseLine(const char *line) {
             const char *comma = strchr(q, ',');
             if (!comma) {
                 fprintf(stderr, "Error: mov4 instruction missing comma\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
@@ -876,25 +881,25 @@ Instruction parseLine(const char *line) {
             HASH_FIND_STR(opMap, "mov4", found);
             if (!found) {
                 fprintf(stderr, "Invalid mov4 opcode\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
             int opBinary = found->binaryVal;
-            free(copy);
+            free(lineCopy);
             return getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
         }
-        else if (strchr(copy, '(') != NULL) {
-            const char *comma = strchr(copy, ',');
+        else if (strchr(lineCopy, '(') != NULL) {
+            const char *comma = strchr(lineCopy, ',');
             if (!comma) {
                 fprintf(stderr, "Error: Invalid mov1 format.\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
             char reg1Str[50] = {0};
-            strncpy(reg1Str, copy + 4, comma - (copy + 4));
-            reg1Str[comma - (copy + 4)] = '\0';
+            strncpy(reg1Str, lineCopy + 4, comma - (lineCopy + 4));
+            reg1Str[comma - (lineCopy + 4)] = '\0';
             const char *remaining = comma + 1;
             while (*remaining && isspace((unsigned char)*remaining))
                 remaining++;
@@ -902,7 +907,7 @@ Instruction parseLine(const char *line) {
             const char *q = strchr(remaining, ')');
             if (!p || !q) {
                 fprintf(stderr, "Error: Missing memory address in mov1.\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
@@ -911,10 +916,10 @@ Instruction parseLine(const char *line) {
             strncpy(reg2Str, p+1, reg2Len);
             reg2Str[reg2Len] = '\0';
             const char *startLiteral = strchr(q, '(');
-            const char *endLiteral = strchr(q, ')');
+            const char *endLiteral = strchr(startLiteral, ')');
             if (!startLiteral || !endLiteral) {
                 fprintf(stderr, "Error: Missing literal in mov1.\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
@@ -930,12 +935,12 @@ Instruction parseLine(const char *line) {
             HASH_FIND_STR(opMap, "mov1", found);
             if (!found) {
                 fprintf(stderr, "Invalid mov1 opcode\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
             int opBinary = found->binaryVal;
-            free(copy);
+            free(lineCopy);
             return getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
         }
         else {
@@ -943,20 +948,20 @@ Instruction parseLine(const char *line) {
             HASH_FIND_STR(opMap, "mov1", found);  
             if (!found) {
                 fprintf(stderr, "Invalid mov opcode\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
-            char *comma = strchr(copy, ',');
+            char *comma = strchr(lineCopy, ',');
             if (!comma) {
                 fprintf(stderr, "Error: Invalid mov2/mov3 format.\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
             char reg1Str[50] = {0};
-            strncpy(reg1Str, copy + 4, comma - (copy + 4));
-            reg1Str[comma - (copy + 4)] = '\0';
+            strncpy(reg1Str, lineCopy + 4, comma - (lineCopy + 4));
+            reg1Str[comma - (lineCopy + 4)] = '\0';
             const char *remaining = comma + 1;
             while (*remaining && isspace((unsigned char)*remaining))
                 remaining++;
@@ -977,12 +982,12 @@ Instruction parseLine(const char *line) {
             }
             if (!found) {
                 fprintf(stderr, "Invalid mov opcode variant\n");
-                free(copy);
+                free(lineCopy);
                 Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
                 return errorInst;
             }
             int opBinary = found->binaryVal;
-            free(copy);
+            free(lineCopy);
             if (hasLiteral)
                 return getInstructionWLiteral(opBinary, reg1, -1, -1, literal);
             else

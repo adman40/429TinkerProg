@@ -1,2 +1,2 @@
 .code
-    not r5, r8
+    mov (r9)(15), r11
