@@ -1,2 +1,2 @@
 .code
-    addi r5, 10
+    not r5, r8

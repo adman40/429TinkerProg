@@ -819,7 +819,7 @@ Instruction parseLine(const char *line) {
     char op[50] = {0};
     strncpy(op, token, sizeof(op)-1);
 
-    int registers[3] = {-1, -1, -1};
+    int registers[3] = {0, 0, 0};
     int regCount = 0;
     int literal = 0;
     int hasLiteral = 0;
