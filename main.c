@@ -887,7 +887,7 @@ Instruction parseLine(const char *line) {
             }
             int opBinary = found->binaryVal;
             free(lineCopy);
-            return getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
+            return getInstructionWLiteral(opBinary, reg1, reg2, 0, literal);
         }
         else if (strchr(lineCopy, '(') != NULL) {
             const char *comma = strchr(lineCopy, ',');
@@ -941,7 +941,7 @@ Instruction parseLine(const char *line) {
             }
             int opBinary = found->binaryVal;
             free(lineCopy);
-            return getInstructionWLiteral(opBinary, reg1, reg2, -1, literal);
+            return getInstructionWLiteral(opBinary, reg1, reg2, 0, literal);
         }
         else {
             cmdToBinary *found = NULL;
@@ -989,9 +989,9 @@ Instruction parseLine(const char *line) {
             int opBinary = found->binaryVal;
             free(lineCopy);
             if (hasLiteral)
-                return getInstructionWLiteral(opBinary, reg1, -1, -1, literal);
+                return getInstructionWLiteral(opBinary, reg1, 0, 0, literal);
             else
-                return getInstructionNoLiteral(opBinary, reg1, reg2, -1);
+                return getInstructionNoLiteral(opBinary, reg1, reg2, 0);
         }
     }
     

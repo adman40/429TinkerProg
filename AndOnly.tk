@@ -1,2 +1,2 @@
 .code
-    mov (r9)(15), r11
+    pop r1
