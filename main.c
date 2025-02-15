@@ -826,6 +826,12 @@ Instruction parseLine(const char *line) {
     int literal = 0;
     int hasLiteral = 0;
     
+    if (strncmp(op, "brr", 3)== 0) {
+        if(strchr(lineCopy, "r") != NULL) {
+            strcpy(op, "brrR");
+        }
+        else strcpy(op, "brrI");
+    }
     if (strncmp(op, "mov", 3) == 0) {
         printf("I FIRST WAS REACHED");
         removeWhitespace(lineCopy);
