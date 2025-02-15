@@ -774,7 +774,7 @@ void removeWhitespace(char *str) {
 
 int parseReg(const char *token) {
     if (!token || token[0] != 'r') {
-        return -1;
+        return atoi(token);
     }
     return atoi(token + 1);
 }
@@ -890,6 +890,7 @@ Instruction parseLine(const char *line) {
             return getInstructionWLiteral(opBinary, reg1, reg2, 0, literal);
         }
         else if (strchr(lineCopy, '(') != NULL) {
+            printf("THIS HAS PAREN");
             const char *comma = strchr(lineCopy, ',');
             if (!comma) {
                 fprintf(stderr, "Error: Invalid mov1 format.\n");
