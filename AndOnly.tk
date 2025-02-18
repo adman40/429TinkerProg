@@ -1,2 +1,2 @@
 .code
-    mov r7, (r9)(15)
+    add r5, r7, r9
