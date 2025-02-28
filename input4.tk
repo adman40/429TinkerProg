@@ -1,5 +1,4 @@
 ; Test 4: operand and register instruction testing
-
 .code
 	addi r3, 15
 	not r4, r5

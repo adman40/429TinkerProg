@@ -23,6 +23,14 @@ typedef struct HashNode {
 } HashNode;
 
 typedef struct {
+    uint32_t fileType;
+    uint32_t codeSegStart;
+    uint32_t codeSegSize;
+    uint32_t dataSegStart;
+    uint32_t dataSegSize;
+} Header;
+
+typedef struct {
     HashNode *buckets[NUM_HASH_BUCKETS];
 } HashMap;
 
@@ -183,25 +191,50 @@ void trimWhitespace(char *str) {
     str[j] = '\0';
 }
 
-void collectLabels(const char *fileName, HashMap *labelMap) {
+void flushPendingLabels(char pendingLabels[][50], int *pendingCount, int addr, HashMap *labelMap) {
+    char addressStr[20];
+    snprintf(addressStr, sizeof(addressStr), "%d", addr);
+    for (int i = 0; i < *pendingCount; i++) {
+        if (hashMapSearch(labelMap, pendingLabels[i]) == NULL) {
+            hashMapInsert(labelMap, pendingLabels[i], addressStr);
+            printf("Collected label: '%s' -> address: '%s'\n", pendingLabels[i], addressStr);
+        } else {
+            fprintf(stderr, "Error: Duplicate label %s\n", pendingLabels[i]);
+        }
+    }
+    *pendingCount = 0; // Clear pending labels
+}
+
+void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
     FILE *inputFile = fopen(fileName, "r");
     if (!inputFile) {
-        fprintf(stderr, "Error opening file");
+        fprintf(stderr, "Error opening file\n");
         return;
     }
 
     char line[256];
-    int programCounter = 4096;
+    int codeSegCounter = 0x2000;  // Start address for code section
+    int dataSegCounter = 0x10000; // Start address for data section
     int inCode = 0, inData = 0;
 
+    // Array to hold pending labels (assumes at most 100 labels in a row)
+    char pendingLabels[100][50];
+    int pendingCount = 0;
+
     while (fgets(line, sizeof(line), inputFile)) {
+        // Trim leading whitespace
         char *trimmed = line;
-        while (*trimmed == ' ' || *trimmed == '\t') {
-            trimmed++;
+        while (*trimmed == ' ' || *trimmed == '\t') { 
+            trimmed++; 
         }
+
+        // Skip comments, empty lines, or lines with only whitespace
         if (trimmed[0] == ';' || trimmed[0] == '\n' || trimmed[0] == '\0')
             continue;
+
+        // Detect section directives (.code or .data)
         if (trimmed[0] == '.') {
+            // Do not flush pending labels here.
             if (strncmp(trimmed, ".data", 5) == 0) {
                 inData = 1;
                 inCode = 0;
@@ -211,38 +244,79 @@ void collectLabels(const char *fileName, HashMap *labelMap) {
             }
             continue;
         }
-        if (trimmed[0] == ':') {
-            char label[50];
+
+        // Detect label lines (lines starting with ':')
+        if (trimmed[0] == ':') { 
+            char label[50] = {0};
             sscanf(trimmed, "%49s", label);
-            trimWhitespace(label);
-            if (hashMapSearch(labelMap, label) == NULL) {
-                char addressStr[20];
-                snprintf(addressStr, sizeof(addressStr), "%d", programCounter);
-                hashMapInsert(labelMap, label, addressStr);
-                printf("Collected label: '%s' -> address: '%s'\n", label, addressStr);
-            } else {
+            trimWhitespace(label);  // assuming you have this function
+
+            // Check for duplicate label immediately
+            if (hashMapSearch(labelMap, label) != NULL) {
                 fprintf(stderr, "Error: Duplicate label %s\n", label);
+            } else {
+                strncpy(pendingLabels[pendingCount], label, sizeof(pendingLabels[pendingCount]) - 1);
+                pendingLabels[pendingCount][sizeof(pendingLabels[pendingCount]) - 1] = '\0';
+                pendingCount++;
             }
             continue;
         }
+
+        // At this point, the line represents an "entry" that gets an address.
+        // First, flush any pending labels with the address of this entry.
+        if (pendingCount > 0) {
+            if (inCode) {
+                flushPendingLabels(pendingLabels, &pendingCount, codeSegCounter, labelMap);
+            } else if (inData) {
+                flushPendingLabels(pendingLabels, &pendingCount, dataSegCounter, labelMap);
+            } else {
+                fprintf(stderr, "Error: Entry found outside .code or .data section\n");
+            }
+        }
+
+        // Now update the counters based on the current section
         if (inCode) {
-            char opcode[20];
+            char opcode[20] = {0};
             if (sscanf(line, "\t%19s", opcode) != 1) {
                 fprintf(stderr, "Error parsing instruction: %s\n", line);
                 continue;
             }
             if (strcmp(opcode, "ld") == 0) {
-                programCounter += 48;
+                codeSegCounter += 48;
             } else if (strcmp(opcode, "push") == 0 || strcmp(opcode, "pop") == 0) {
-                programCounter += 8;
+                codeSegCounter += 8;
             } else {
-                programCounter += 4;
+                codeSegCounter += 4;
             }
-        }
+        } 
         else if (inData) {
-            programCounter += 8;
+            dataSegCounter += 8;
+            printf("Processed data entry; new dataSegCounter: %d\n", dataSegCounter);
         }
     }
+
+    // Flush any pending labels at the end of the file.
+    if (pendingCount > 0) {
+        if (inCode) {
+            flushPendingLabels(pendingLabels, &pendingCount, codeSegCounter, labelMap);
+        } else if (inData) {
+            flushPendingLabels(pendingLabels, &pendingCount, dataSegCounter, labelMap);
+        } else {
+            fprintf(stderr, "Error: Pending label(s) found outside .code or .data section\n");
+        }
+    }
+
+    header->codeSegSize = codeSegCounter - header->codeSegStart; 
+    header->dataSegSize = dataSegCounter - header->dataSegStart;
+
+    printf("Stored labels in labelMap:\n");
+    for (int i = 0; i < NUM_HASH_BUCKETS; i++) {
+        HashNode *node = labelMap->buckets[i];
+        while (node) {
+            printf("Label: %s -> Address: %s\n", node->key, node->value);
+            node = node->next;
+        }
+    } 
 
     fclose(inputFile);
 }
@@ -283,29 +357,76 @@ void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
     operands[99] = '\0';
 }
 
+void normalizeCodeIndentation(char *codeBuffer) {
+    char *src = codeBuffer;
+    char *dst = codeBuffer;
+    
+    // Skip ".code\n" line to avoid modifying it
+    while (*src != '\0' && *src != '\n') {
+        *dst++ = *src++;
+    }
+    if (*src == '\n') {
+        *dst++ = *src++;  // Copy newline after .code
+    }
+
+    // Process each line after .code
+    while (*src != '\0') {
+        // Skip all leading spaces/tabs
+        while (*src == ' ' || *src == '\t') {
+            src++;
+        }
+
+        // Ensure a single tab before actual instruction
+        *dst++ = '\t';
+
+        // Copy the rest of the line
+        while (*src != '\0' && *src != '\n') {
+            *dst++ = *src++;
+        }
+        if (*src == '\n') {
+            *dst++ = *src++;  // Preserve newline
+        }
+    }
+
+    *dst = '\0';  // Null-terminate the buffer
+}
+
 char *parseFile(const char *fileName) {
     FILE *inputFile = fopen(fileName, "r");
     if (!inputFile) {
         fprintf(stderr, "Error opening file");
         return NULL;
     }
-    size_t bufferSize = (size_t)(getFileSize(inputFile) * 1.5);
-    char *outputBuffer = (char*)malloc(bufferSize);
-    if (!outputBuffer) {
-        fprintf(stderr, "Error allocating output buffer");
+    size_t codeBufferSize = (size_t)(getFileSize(inputFile) * 1.5);
+    size_t dataBufferSize = (size_t)(getFileSize(inputFile) * 1.5);
+    char *codeBuffer = (char*)malloc(codeBufferSize);
+    char *dataBuffer = (char*)malloc(codeBufferSize);
+    if (!codeBuffer || !dataBuffer) {
+        fprintf(stderr, "Error allocating code/data buffer");
         fclose(inputFile);
         return NULL;
     }
-    outputBuffer[0] = '\0';
+    snprintf(codeBuffer, codeBufferSize, ".code\n");
+    snprintf(dataBuffer, dataBufferSize, ".data\n");
     char line[256];
     int isData = 0;
     int isCode = 0;
+    SectionType lastSection = NONE;
     int codeCounter = 0;
-    size_t outputLength = 0;
+    size_t codeLength = 0;
+    size_t dataLength = 0;
     int memLabelCounter = 4096;
     HashMap labelMap;
     initializeHashMap(&labelMap);
-    collectLabels(fileName, &labelMap);
+    Header *header = (Header *)malloc(sizeof(Header));
+    if (!header) {
+        fprintf(stderr, "Error: Memory allocation for header failed.\n");
+        return NULL;
+    }
+    header->fileType = 0;
+    header->codeSegStart = 0x2000;
+    header->dataSegStart = 0x10000;
+    collectLabels(fileName, &labelMap, header);
     while (fgets(line, 255, inputFile)) {
         char *trimmed = line;
         while (*trimmed == ' ' || *trimmed == '\t') { trimmed++; }
@@ -315,7 +436,8 @@ char *parseFile(const char *fileName) {
         else if (trimmed[0] == '.') {
             if (strncmp(trimmed, ".data", 5) != 0 && strncmp(trimmed, ".code", 5) != 0) {
                 fprintf(stderr, "Error . must be followed by code or data");
-                free(outputBuffer);
+                free(dataBuffer);
+                free (codeBuffer);
                 fclose(inputFile);
                 return NULL;
             }
@@ -336,21 +458,6 @@ char *parseFile(const char *fileName) {
                 }
                 continue;
             }
-
-            size_t lineLength = strlen(line);
-            while (outputLength + lineLength >= bufferSize) {
-                bufferSize *= 2;
-                char *temp = realloc(outputBuffer, bufferSize);
-                if (!temp) {
-                    fprintf(stderr, "Error reallocating output buffer");
-                    free(outputBuffer);
-                    fclose(inputFile);
-                    return NULL;
-                }
-            outputBuffer = temp;
-            }
-            strcat(outputBuffer, line);
-            outputLength += lineLength;
             if (strncmp(trimmed, ".data", 5) == 0) {
                 isData = 1;
                 isCode = 0;
@@ -367,13 +474,15 @@ char *parseFile(const char *fileName) {
         else {
             if (line[0] != '\t' && strncmp(line, "    ", 4) != 0) {
                 fprintf(stderr, "Error instruction line should start with tab");
-                free(outputBuffer);
+                free(codeBuffer);
+                free(dataBuffer);
                 fclose(inputFile);
                 return NULL;
             }
             if (!isCode && !isData) {
                 fprintf(stderr, "Error, instructions/data must follow .code or .data");
-                free(outputBuffer);
+                free(codeBuffer);
+                free(dataBuffer); 
                 fclose(inputFile);
                 return NULL;
             }
@@ -391,25 +500,29 @@ char *parseFile(const char *fileName) {
                 }
                 if (*endPtr != '\0' && trimmedLine[0] != ':') {
                     fprintf(stderr, "Error: Data section must contain only numbers.\n");
-                    free(outputBuffer);
+                    free(codeBuffer);
+                    free(dataBuffer); 
                     fclose(inputFile);
                     return NULL;
                 }
 
                 size_t lineLength = strlen(line) + 1;
-                while (outputLength + lineLength >= bufferSize) {
-                    bufferSize *= 2;
-                    char *temp = realloc(outputBuffer, bufferSize);
+                while (dataLength + lineLength >= dataBufferSize) {
+                    dataBufferSize *= 2;
+                    char *temp = realloc(dataBuffer, dataBufferSize);
                     if (!temp) {
                         fprintf(stderr, "Error reallocating output buffer");
-                        free(outputBuffer);
+                        free(codeBuffer);
+                        free(dataBuffer);
                         fclose(inputFile);
                         return NULL;
                     }
-                    outputBuffer = temp;
+                    dataBuffer = temp;
                 }
-                strcat(outputBuffer, line);
-                outputLength += lineLength;
+                char formatted[256];
+                snprintf(formatted, sizeof(formatted), "    %s", trimmed);
+                strcat(dataBuffer, formatted);
+                dataLength += lineLength;
             }
  
             else if (isCode) {
@@ -423,7 +536,8 @@ char *parseFile(const char *fileName) {
                 int matched = sscanf(trimmed, "%19s %99[^\n]", opcode, operands);
                 if (matched < 1) {
                     fprintf(stderr, "Error: Could not parse instruction line.\n");
-                    free(outputBuffer);
+                    free(codeBuffer);
+                    free(dataBuffer);
                     fclose(inputFile);
                     return NULL;
                 } else if (matched == 1) {
@@ -434,26 +548,30 @@ char *parseFile(const char *fileName) {
                 originalOperands[sizeof(originalOperands) - 1] = '\0';
                 if (strcmp(opcode, "mov") == 0 || strcmp(opcode, "brr") == 0) {
                     size_t lineLength = strlen(line);
-                    while (outputLength + lineLength >= bufferSize) {
-                        bufferSize *= 2;
-                        char *temp = realloc(outputBuffer, bufferSize);
+                    while (codeLength + lineLength >= codeBufferSize) {
+                        codeBufferSize *= 2;
+                        char *temp = realloc(codeBuffer, codeBufferSize);
                         if (!temp) {
                             fprintf(stderr, "Error reallocating output buffer");
-                            free(outputBuffer);
+                            free(codeBuffer);
+                            free(dataBuffer);
                             fclose(inputFile);
                             return NULL;
                         }
-                        outputBuffer = temp;
+                        codeBuffer = temp;
                     }
-                    strcat(outputBuffer, line);
-                    outputLength += lineLength;
+                    char formatted[256];
+                    snprintf(formatted, sizeof(formatted), "\t%s", trimmed);
+                    strcat(codeBuffer, formatted);
+                    codeLength += lineLength;
                     continue; 
                 }
                 char expanded[4096] = {0}; 
                 const char *expectedOperands = getOperandFormat(opcode);
                 if (!expectedOperands) {
                     fprintf(stderr, "Error: Invalid instruction '%s'.\n", opcode);
-                    free(outputBuffer);
+                    free(codeBuffer);
+                    free(dataBuffer);
                     fclose(inputFile);
                     return NULL;
                 }
@@ -473,7 +591,8 @@ char *parseFile(const char *fileName) {
                     if (expectedOperands[opIndex] == 'R') {
                         if (!isValidRegister(token)) {
                             fprintf(stderr, "Error: Expected a valid register (r0-r31), but got '%s'.\n", token);
-                            free(outputBuffer);
+                            free(codeBuffer);
+                            free(dataBuffer);
                             fclose(inputFile);
                             return NULL;
                         }
@@ -481,7 +600,8 @@ char *parseFile(const char *fileName) {
                     else if (expectedOperands[opIndex] == 'I') {
                         if (!isValidImmediate(token)) {
                             fprintf(stderr, "Error: Expected an immediate value (0-65535), but got '%s'.\n", token);
-                            free(outputBuffer);
+                            free(codeBuffer);
+                            free(dataBuffer);
                             fclose(inputFile);
                             return NULL;
                         }
@@ -493,7 +613,8 @@ char *parseFile(const char *fileName) {
 
                 if (opIndex != strlen(expectedOperands)) {
                     fprintf(stderr, "Error: Incorrect number of operands for instruction '%s'. Expected format: %s\n", opcode, expectedOperands);
-                    free(outputBuffer);
+                    free(codeBuffer);
+                    free(dataBuffer);
                     fclose(inputFile);
                     return NULL;
                 }
@@ -521,7 +642,8 @@ char *parseFile(const char *fileName) {
                     char *commaPos = strchr(originalOperands, ',');
                     if (!commaPos) {
                         fprintf(stderr, "Error: ld instruction operands must be comma-separated (e.g., ld r1, :D0)\n");
-                        free(outputBuffer);
+                        free(codeBuffer);
+                        free(dataBuffer);
                         fclose(inputFile);
                         return NULL;
                     }
@@ -535,7 +657,8 @@ char *parseFile(const char *fileName) {
                     label[sizeof(label) - 1] = '\0';
                     if (!isValidRegister(rd)) {
                         fprintf(stderr, "Error: Invalid destination register '%s' in ld instruction\n", rd);
-                        free(outputBuffer);
+                        free(codeBuffer);
+                        free(dataBuffer);
                         fclose(inputFile);
                         return NULL;
                     }
@@ -546,7 +669,8 @@ char *parseFile(const char *fileName) {
                         char *labelAddressPtr = hashMapSearch(&labelMap, label);
                         if (!labelAddressPtr) {
                             fprintf(stderr, "Error: Undefined label %s in ld instruction\n", label);
-                            free(outputBuffer);
+                            free(codeBuffer);
+                            free(dataBuffer);
                             fclose(inputFile);
                             return NULL;
                         }
@@ -557,7 +681,8 @@ char *parseFile(const char *fileName) {
                     }
                     else {
                         fprintf(stderr, "Error: ld instruction must use a valid memory label or 64-bit immediate\n");
-                        free(outputBuffer);
+                        free(codeBuffer);
+                        free(dataBuffer);
                         fclose(inputFile);
                         return NULL;
                     }
@@ -606,23 +731,34 @@ char *parseFile(const char *fileName) {
                 }
 
                 size_t lineLength = strlen(expanded) + 1;
-                while (outputLength + strlen(expanded) + 1 >= bufferSize) {
-                    bufferSize *= 2;
+                while (codeLength + strlen(expanded) + 1 >= codeBufferSize) {
+                    codeBufferSize *= 2;
                 }
-                char *temp = realloc(outputBuffer, bufferSize);
+                char *temp = realloc(codeBuffer, codeBufferSize);
                 if (!temp) {
                     fprintf(stderr, "Error reallocating output buffer");
-                    free(outputBuffer);
+                    free(codeBuffer);
+                    free(dataBuffer);
                     fclose(inputFile);
                     return NULL;
                 }
-                outputBuffer = temp;
-                strncat(outputBuffer, expanded, bufferSize - outputLength - 1);
-                outputLength += strlen(expanded);
+                codeBuffer = temp;
+                strncat(codeBuffer, expanded, codeBufferSize - codeLength - 1);
+                codeLength += strlen(expanded);
             }
 
         }
     }
+    normalizeCodeIndentation(codeBuffer);
+    size_t outputSize = 2 * (codeLength + dataLength + 2);
+    char * outputBuffer = (char *) malloc (outputSize);
+    if (!outputBuffer) {
+        fprintf(stderr, "Error allocating final output buffer\n");
+        free(codeBuffer);
+        free(dataBuffer);
+        return NULL;
+    }
+    snprintf(outputBuffer, outputSize, "%u\n%u\n%u\n%u\n%u\n%s%s", header->fileType, header->codeSegStart, header->codeSegSize, header->dataSegStart, header->dataSegSize, codeBuffer, dataBuffer);
     return outputBuffer;
 }
 
@@ -832,7 +968,7 @@ Instruction parseLine(const char *line) {
         }
         else strcpy(op, "brrI");
     }
-    else if (strncmp(op, "mov", 3) == 0) {
+    if (strncmp(op, "mov", 3) == 0) {
         printf("I FIRST WAS REACHED");
         removeWhitespace(lineCopy);
         printf("%s\n", lineCopy);
@@ -1040,7 +1176,16 @@ void stage2Parse(const char* fileName, const char* outputFile) {
         fclose(in);
         return;
     }
-    
+    uint32_t header[5];
+    for (int i = 0; i < 5; i++) {
+        if (fscanf(in, "%u", &header[i]) != 1) {
+            fprintf(stderr, "Error reading header value %d\n", i + 1);
+            fclose(in);
+            fclose(out);
+            return;
+        }
+    }
+    fwrite(header, sizeof(uint32_t), 5, out);
     char line[256];
     int isCode = 0;
     while (fgets(line, sizeof(line), in)) {
@@ -1085,15 +1230,18 @@ char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
 }
 
 int main(int argc, char *argv[]) {
+    // validate number of inputs
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <input_file> <output_file>\n", argv[0]);
         return EXIT_FAILURE;
     }
+    // initialize hashmap storing binary values corresponding to opcode characters
     initializeOpcodeMap(opMap);
 
     const char *inputFile = argv[1];
     const char *outputFile = argv[2];
 
+    // call parse file to store characters in string
     char *intermediateOutput = parseFile(inputFile);
     if (!intermediateOutput) {
         fprintf(stderr, "Error processing file in first pass.\n");
@@ -1107,12 +1255,15 @@ int main(int argc, char *argv[]) {
         free(intermediateOutput);
         return EXIT_FAILURE;
     }
+
+    // print string to intermediate file
     fprintf(temp, "%s", intermediateOutput);
     fclose(temp);
     free(intermediateOutput);
 
     printf("Checking contents of tempOutput.txt...\n");
 
+    // debugging
     FILE *debugFile = fopen(tempFile, "r");
     if (!debugFile) {
         fprintf(stderr, "Error: Could not open tempOutput.txt for reading.\n");
@@ -1125,6 +1276,8 @@ int main(int argc, char *argv[]) {
     }
     fclose(debugFile);
 
+
+    // call stage 2 parse to convert to binary 
     stage2Parse(tempFile, outputFile);
 
     remove(tempFile); 
