@@ -379,9 +379,8 @@ char *parseFile(const char *fileName) {
     int isCode = 0;
     SectionType lastSection = NONE;
     int codeCounter = 0;
-    size_t codeLength = 0;
-    size_t dataLength = 0;
-    int memLabelCounter = 4096;
+    size_t codeLength = strlen(codeBuffer);
+    size_t dataLength = strlen(dataBuffer);
     HashMap labelMap;
     initializeHashMap(&labelMap);
     Header *header = (Header *)malloc(sizeof(Header));
@@ -1183,7 +1182,7 @@ void stage2Parse(const char* fileName, const char* outputFile) {
 
 char* resizeBuffer(char *buffer, size_t *bufferSize, size_t requiredSize) {
     while (requiredSize >= *bufferSize - 1) {
-        *bufferSize *= 2;
+        *bufferSize *= 4;
         char *temp = realloc(buffer, *bufferSize);
         if (!temp) {
             fprintf(stderr, "Error reallocating output buffer\n");
@@ -1202,7 +1201,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     // initialize hashmap storing binary values corresponding to opcode characters
-    initializeOpcodeMap(opMap);
+    initializeOpcodeMap();
 
     const char *inputFile = argv[1];
     const char *outputFile = argv[2];

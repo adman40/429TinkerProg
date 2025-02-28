@@ -1,9 +1,2 @@
-; Test 5: Extra whitespace and minimal instruction set
-
-	.data
-	    42
-
-:EdgeLabel
-
 .code
-	mov r6, r7
+    add r5, r9, r15
