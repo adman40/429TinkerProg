@@ -1,75 +1,82 @@
 .code
-	ld r2,65536
-	ld r11,65536
-	mov r1,0
-	mov r4,2
-	mov r10,8
-	priv r0,r1,r0,3
-	mov r6,r0
-	subi r6,1
-	ld r3,:readArray
-	ld r16,:binSearch
-	ld r14,:updateLow
-	ld r15,:updateHigh
-	ld r17,:notfound
-	ld r18,:found
-:readArray
-	priv r4,r1,r4,3
-	mov (r2)(0),r4
-	addi r2,8
-	subi r0,1
-	brnz r3,r0
-	clr r0
-	priv r7,r1,r7,3
-	br r16
-:binSearch
-	brgt r17,r5,r6
-	mov r8,r6
-	sub r8,r8,r5
-	div r8,r8,r4
-	add r8,r8,r5
-	mov r28,r8
-	mul r8,r8,r10
-	add r8,r8,r11
-	mov r12,(r8)(0)
-	brgt r14,r7,r12
-	brgt r15,r12,r7
-	br r18
-:updateLow
-	ld r25,1
-	add r5,r28,r25
-	br r16
-:updateHigh
-	ld r26,1
-	sub r6,r28,r26
-	br r16
-:notfound
-	mov r19,3
-	mov r30,110
-	out r19,r30
-	mov r30,111
-	out r19,r30
-	mov r30,117
-	out r19,r30
-	mov r30,110
-	out r19,r30
-	mov r30,100
-	out r19,r30
-	mov r30,10
-	out r19,r30
+	ld r8, 65536
+	ld r15, 65536
+	mov r3, 0
+	mov r13, 2
+	mov r14, 8
+	priv r2, r3, r2, 3
+	mov r10, r2
+	subi r10, 1
+	ld r4, :processInput
+	ld r17, :adjustLower
+	ld r18, :adjustUpper
+	ld r20, :loopCondition
+	ld r22, :notLocated
+	ld r24, :located
+:processInput
+	priv r6, r3, r6, 3
+	mov (r8)(0), r6
+	subi r2, 1
+	addi r8, 8
+	brnz r4, r2
+	clr r7
+	priv r9, r3, r9, 3
+:loopCondition
+	brgt r22, r7, r10
+	clr r12
+	sub r12, r10, r7
+	div r12, r12, r13
+	add r12, r7, r12
+	mov r30, r12
+	mul r12, r12, r14
+	add r12, r12, r15
+	mov r16, (r12)(0)
+	brgt r17, r9, r16
+	brgt r18, r16, r9
+	br r24
+:adjustLower
+	ld r27, 1
+	add r7, r30, r27
+	br r20
+:adjustUpper
+	ld r28, 1
+	sub r10, r30, r28
+	br r20
+:notLocated
+	mov r23, 3
+	mov r31, 110
+	out r23, r31
+	mov r31, 111
+	out r23, r31
+	mov r31, 116
+	out r23, r31
+	mov r31, 32
+	out r23, r31
+	mov r31, 102
+	out r23, r31
+	mov r31, 111
+	out r23, r31
+	mov r31, 117
+	out r23, r31
+	mov r31, 110
+	out r23, r31
+	mov r31, 100
+	out r23, r31
+	mov r31, 10
+	out r23, r31
 	halt
-:found
-	mov r19,3
-	mov r30,102
-	out r19,r30
-	mov r30,111
-	out r19,r30
-	mov r30,117
-	out r19,r30
-	mov r30,110
-	out r19,r30
-	mov r30,100
-	out r19,r30
-	mov r30,10
-	out r19,r30
+:located
+	mov r23, 3
+	mov r31, 102
+	out r23, r31
+	mov r31, 111
+	out r23, r31
+	mov r31, 117
+	out r23, r31
+	mov r31, 110
+	out r23, r31
+	mov r31, 100
+	out r23, r31
+	mov r31, 10
+	out r23, r31
 	halt

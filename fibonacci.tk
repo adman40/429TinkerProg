@@ -1,29 +1,29 @@
 .code
-	ld r17, :TWO
-	ld r15, :FIBBO
-	mov r1, 0
-	mov r2, 1
-	priv r0, r1, r0, 3
-	mov r3, 1
-	mov r4, 2
-	brgt r15, r0, r4
-	brgt r17, r0, r3
-	out r2, r1
+	mov r5, 0
+	mov r12, 1
+	priv r2, r5, r2, 3
+	mov r6, 2
+	mov r7, 1
+	ld r8, :compute
+	brgt r8, r2, r6
+	ld r9, :case_one
+	brgt r9, r2, r7
+	out r12, r5
 	halt
-:TWO
-	out r2, r3
+:compute
+	mov r25, 0
+	mov r26, 1
+	sub r2, r2, r7
+	sub r2, r2, r7
+	ld r27, :iteration
+:iteration
+	add r28, r25, r26
+	mov r25, r26
+	mov r26, r28
+	sub r2, r2, r7
+	brnz r27, r2
+	out r12, r26
 	halt
-:FIBBO
-	mov r10, 0
-	mov r11, 1
-	sub r0, r0, r3
-	sub r0, r0, r3
-	ld r16, :LOOP
-:LOOP
-	add r12, r10, r11
-	mov r10, r11
-	mov r11, r12
-	sub r0, r0, r3
-	brnz r16, r0
-	out r10, r11
+:case_one
+	out r12, r7
 	halt
