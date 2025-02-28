@@ -900,6 +900,119 @@ uint64_t my_htobe64(uint64_t host)
            ((host & 0xFF00000000000000ULL) >> 56);
 }
 
+int isValidMov(const char *line) {
+    const char *p = line;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (strncmp(p, "mov", 3) != 0)
+        return 0;
+    p += 3;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p == '(') {
+        p++;
+        if (*p != 'r')
+            return 0;
+        p++;
+        char *endptr;
+        long regX = strtol(p, &endptr, 10);
+        if (endptr == p || regX < 0 || regX > 31)
+            return 0;
+        p = endptr;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ')')
+            return 0;
+        p++; 
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != '(')
+            return 0;
+        p++;
+        long literal = strtol(p, &endptr, 10);
+        if (endptr == p || literal < -2048 || literal > 2047)
+            return 0;
+        p = endptr;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ')')
+            return 0;
+        p++; 
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ',')
+            return 0;
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != 'r')
+            return 0;
+        p++;
+        long regY = strtol(p, &endptr, 10);
+        if (endptr == p || regY < 0 || regY > 31)
+            return 0;
+        p = endptr;
+        while (*p && isspace((unsigned char)*p)) p++;
+        return (*p == '\0' || *p == '\n');
+    }    
+    else if (*p == 'r') {
+        p++;
+        char *endptr;
+        long regX = strtol(p, &endptr, 10);
+        if (endptr == p || regX < 0 || regX > 31)
+            return 0;
+        p = endptr;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ',')
+            return 0;
+        p++; 
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '(') {
+            p++; 
+            if (*p != 'r')
+                return 0;
+            p++; 
+            long regY = strtol(p, &endptr, 10);
+            if (endptr == p || regY < 0 || regY > 31)
+                return 0;
+            p = endptr;
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p != ')')
+                return 0;
+            p++; 
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p != '(')
+                return 0;
+            p++;
+            long literal = strtol(p, &endptr, 10);
+            if (endptr == p || literal < -2048 || literal > 2047)
+                return 0;
+            p = endptr;
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p != ')')
+                return 0;
+            p++;
+            while (*p && isspace((unsigned char)*p)) p++;
+            return (*p == '\0' || *p == '\n');
+        }
+        else if (*p == 'r') {
+            p++; 
+            long regY = strtol(p, &endptr, 10);
+            if (endptr == p || regY < 0 || regY > 31)
+                return 0;
+            p = endptr;
+            while (*p && isspace((unsigned char)*p)) p++;
+            return (*p == '\0' || *p == '\n');
+        }
+        else if (isdigit((unsigned char)*p) || *p == '-') {
+            // Format 3: mov rX, L
+            long literal = strtol(p, &endptr, 10);
+            if (endptr == p || literal < -2048 || literal > 2047)
+                return 0;
+            p = endptr;
+            while (*p && isspace((unsigned char)*p)) p++;
+            return (*p == '\0' || *p == '\n');
+        }
+        else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
 Instruction parseLine(const char *line) {
     printf("Parsing line: %s\n", line);
     char *lineCopy = strdup(line);
@@ -928,14 +1041,58 @@ Instruction parseLine(const char *line) {
     int hasLiteral = 0;
     
     if (strncmp(op, "brr", 3)== 0) {
-        if(strchr(lineCopy, 'r') != NULL) {
-            strcpy(op, "brrR");
+        char *operandToken = strtok(NULL, " \t");
+        if (!operandToken) {
+            fprintf(stderr, "Error: brr instruction requires exactly one operand.\n");
+            free(copy); free(lineCopy);
+            Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
+            return errorInst;
         }
-        else strcpy(op, "brrI");
+        if (isValidRegister(operandToken)) {
+            strcpy(op, "brrR");
+        } else if (isValidImmediate(operandToken)) {
+            strcpy(op, "brrL");  // Note: we use "brrL" (for literal) to match your opcode map.
+        } else {
+            fprintf(stderr, "Error: brr operand '%s' is neither a valid register nor immediate.\n", operandToken);
+            free(copy); free(lineCopy);
+            Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
+            return errorInst;
+        }
+        char *extra = strtok(NULL, " \t");
+        if (extra != NULL) {
+            fprintf(stderr, "Error: brr instruction expects exactly one operand.\n");
+            free(copy); free(lineCopy);
+            Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
+            return errorInst;
+        }
+        cmdToBinary *found = NULL;
+        HASH_FIND_STR(opMap, op, found);
+        if (!found) {
+            fprintf(stderr, "Invalid brr opcode: %s\n", op);
+            free(copy); free(lineCopy);
+            Instruction errorInst = {0, {-1, -1, -1}, 0, 0};
+            return errorInst;
+        }
+        int opBinary = found->binaryVal;
+        Instruction inst;
+        if (strcmp(op, "brrR") == 0) {
+            int reg = parseReg(operandToken);
+            inst = getInstructionNoLiteral(opBinary, reg, 0, 0);
+        }
+        else {
+            int lit = atoi(operandToken);
+            inst = getInstructionWLiteral(opBinary, 0, 0, 0, lit);
+        }
+        free(copy);
+        free(lineCopy);
+        return inst;
     }
     if (strncmp(op, "mov", 3) == 0) {
-        printf("I FIRST WAS REACHED");
         removeWhitespace(lineCopy);
+        if (!isValidMov(lineCopy)) {
+            fprintf(stderr, "Invalid mov formatting");
+            exit(-1);
+        }
         printf("%s\n", lineCopy);
         if (lineCopy[3] == '(') {
             printf("I WAS REACHED");
