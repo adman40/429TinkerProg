@@ -49,8 +49,8 @@
 	mul r16, r16, r6
 	add r15, r15, r13
 	add r16, r16, r14
-	mov r17, (r15)(0)  
-	mov r28, (r16)(0)  
+	mov r17, (r15)(0)
+	mov r28, (r16)(0)
 	mulf r31, r17, r28
 	addf r27, r27, r31
 	addi r11, 1
