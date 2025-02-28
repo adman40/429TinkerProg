@@ -68,3 +68,5 @@
 	br r20
 :exit_outer
 	halt
+:done
+	halt
