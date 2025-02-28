@@ -1,0 +1,31 @@
+.code
+    ld r1, 0
+    priv r0, r1, r0, 3
+    ld r6, 1
+    ld r10, :GO
+    ld r20, :NEXT
+    ld r30, :FIN
+    brnz r10, r0
+    clr r7
+    out r6, r7
+    halt
+:GO
+    ld r9, 1
+    sub r12, r0, r9
+    brnz r20, r12
+    out r6, r12
+    halt
+:NEXT
+    clr r2
+    ld r3, 1
+    ld r8, 2
+:LOOP
+    brgt r30, r8, r0
+    add r4, r2, r3
+    mov r2, r3
+    mov r3, r4
+    addi r8, 1
+    brr :LOOP
+:FIN
+    out r6, r3
+    halt
