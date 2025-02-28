@@ -1,5 +1,5 @@
 .code
-    ld r1, 0
+    mov r1, 0
     priv r0, r1, r0, 3
     ld r6, 1
     ld r10, :GO
