@@ -1,70 +1,71 @@
 .code
-	mov r1, 0
-	ld r12, 65536
-	ld r13, 65536
-	ld r6, 8
-	priv r2, r1, r2, 3
-	mov r29, r2
-	mov r30, r2
-	subi r30, 1
-	mul r5, r2, r2
-	mov r3, r5
-	mov r2, r3
-	ld r18, :matrix_A
-	ld r19, :matrix_B
-	ld r20, :outer_loop
-	ld r21, :mid_loop
-	ld r22, :inner_loop
-	ld r23, :exit_inner
-	ld r24, :exit_mid
-	ld r25, :exit_outer
-	ld r26, :done
+	mov r1,0
+	ld r12,65536
+	ld r13,65536
+	ld r6,8
+	priv r2,r1,r2,3
+	mov r29,r2
+	mov r30,r2
+	subi r30,1
+	mul r5,r2,r2
+	mov r3,r5
+	mov r2,r3
+	ld r18,:matrix_A
+	ld r19,:matrix_B
+	ld r20,:outer_loop
+	ld r21,:mid_loop
+	ld r22,:inner_loop
+	ld r23,:exit_inner
+	ld r24,:exit_mid
+	ld r25,:exit_outer
+	ld r26,:done
+	mov r14,r13
+	mov r31,r12
 :matrix_A
-	priv r7, r1, r7, 3
-	mov (r12)(0), r7
-	addi r12, 8
-	subi r2, 1
-	brnz r18, r2
-	mov r14, r12
+	priv r7,r1,r7,3
+	mov (r31)(0),r7
+	addi r31,8
+	subi r2,1
+	brnz r18,r2
 	br r19
 :matrix_B
-	priv r8, r1, r8, 3
-	mov (r12)(0), r8
-	addi r12, 8
-	subi r3, 1
-	brnz r20, r3
-	mov r9, 0
+	priv r8,r1,r8,3
+	mov (r13)(0),r8
+	addi r13,8
+	subi r3,1
+	brnz r19,r3
+	mov r9,0
 	br r20
 :outer_loop
-	mov r10, 0
+	mov r10,0
 :mid_loop
-	mov r11, 0
+	mov r11,0
 	clr r27
 :inner_loop
-	mul r15, r10, r29
-	add r15, r15, r11
-	mul r15, r15, r6
-	add r15, r15, r12
-	mul r16, r11, r29
-	add r16, r16, r9
-	mul r16, r16, r6
-	add r16, r16, r14
-	mov r17, (r15)(0)
-	mov r28, (r16)(0)
-	mulf r31, r17, r28
-	addf r27, r27, r31
-	addi r11, 1
-	brgt r23, r11, r30
+	mul r15,r10,r29
+	add r15,r15,r11
+	mul r15,r15,r6
+	add r15,r15,r12
+	mul r16,r11,r29
+	add r16,r16,r9
+	mul r16,r16,r6
+	add r16,r16,r14
+	mov r17,(r15)(0)
+	mov r28,(r16)(0)
+	mulf r31,r17,r28
+	addf r27,r27,r31
+	addi r11,1
+	brgt r23,r11,r30
 	br r22
 :exit_inner
-	ld r4, 1
-	priv r4, r27, r4, 4
-	addi r10, 1
-	brgt r24, r10, r30
+	ld r4,1
+	priv r4,r27,r4,4
+	addi r10,1
+	brgt r24,r10,r30
 	br r21
 :exit_mid
-	addi r9, 1
-	brgt r25, r9, r30
+	addi r9,1
+	brgt r25,r9,r30
 	br r20
 :exit_outer
 	halt
