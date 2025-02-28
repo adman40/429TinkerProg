@@ -6,7 +6,7 @@
 	ld r20, :NEXT
 	ld r30, :FIN
 	ld r25, :LOOP
-	brnz r10, r0
+	brgt r10, r0, r1
 	clr r7
 	out r6, r7
 	halt
