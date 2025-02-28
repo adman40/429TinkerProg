@@ -202,7 +202,7 @@ void flushPendingLabels(char pendingLabels[][50], int *pendingCount, int addr, H
             fprintf(stderr, "Error: Duplicate label %s\n", pendingLabels[i]);
         }
     }
-    *pendingCount = 0; // Clear pending labels
+    *pendingCount = 0;
 }
 
 void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
@@ -216,25 +216,16 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
     int codeSegCounter = 0x2000;  // Start address for code section
     int dataSegCounter = 0x10000; // Start address for data section
     int inCode = 0, inData = 0;
-
-    // Array to hold pending labels (assumes at most 100 labels in a row)
     char pendingLabels[100][50];
     int pendingCount = 0;
-
     while (fgets(line, sizeof(line), inputFile)) {
-        // Trim leading whitespace
         char *trimmed = line;
         while (*trimmed == ' ' || *trimmed == '\t') { 
             trimmed++; 
         }
-
-        // Skip comments, empty lines, or lines with only whitespace
         if (trimmed[0] == ';' || trimmed[0] == '\n' || trimmed[0] == '\0')
             continue;
-
-        // Detect section directives (.code or .data)
         if (trimmed[0] == '.') {
-            // Do not flush pending labels here.
             if (strncmp(trimmed, ".data", 5) == 0) {
                 inData = 1;
                 inCode = 0;
@@ -244,14 +235,10 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
             }
             continue;
         }
-
-        // Detect label lines (lines starting with ':')
         if (trimmed[0] == ':') { 
             char label[50] = {0};
             sscanf(trimmed, "%49s", label);
-            trimWhitespace(label);  // assuming you have this function
-
-            // Check for duplicate label immediately
+            trimWhitespace(label); 
             if (hashMapSearch(labelMap, label) != NULL) {
                 fprintf(stderr, "Error: Duplicate label %s\n", label);
             } else {
@@ -261,9 +248,6 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
             }
             continue;
         }
-
-        // At this point, the line represents an "entry" that gets an address.
-        // First, flush any pending labels with the address of this entry.
         if (pendingCount > 0) {
             if (inCode) {
                 flushPendingLabels(pendingLabels, &pendingCount, codeSegCounter, labelMap);
@@ -273,8 +257,6 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
                 fprintf(stderr, "Error: Entry found outside .code or .data section\n");
             }
         }
-
-        // Now update the counters based on the current section
         if (inCode) {
             char opcode[20] = {0};
             if (sscanf(line, "\t%19s", opcode) != 1) {
@@ -294,8 +276,6 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
             printf("Processed data entry; new dataSegCounter: %d\n", dataSegCounter);
         }
     }
-
-    // Flush any pending labels at the end of the file.
     if (pendingCount > 0) {
         if (inCode) {
             flushPendingLabels(pendingLabels, &pendingCount, codeSegCounter, labelMap);
@@ -305,10 +285,8 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
             fprintf(stderr, "Error: Pending label(s) found outside .code or .data section\n");
         }
     }
-
     header->codeSegSize = codeSegCounter - header->codeSegStart; 
     header->dataSegSize = dataSegCounter - header->dataSegStart;
-
     printf("Stored labels in labelMap:\n");
     for (int i = 0; i < NUM_HASH_BUCKETS; i++) {
         HashNode *node = labelMap->buckets[i];
@@ -317,7 +295,6 @@ void collectLabels(const char *fileName, HashMap *labelMap, Header *header) {
             node = node->next;
         }
     } 
-
     fclose(inputFile);
 }
 
@@ -360,35 +337,25 @@ void replaceMemoryAddresses(char *operands, HashMap *labelMap) {
 void normalizeCodeIndentation(char *codeBuffer) {
     char *src = codeBuffer;
     char *dst = codeBuffer;
-    
-    // Skip ".code\n" line to avoid modifying it
     while (*src != '\0' && *src != '\n') {
         *dst++ = *src++;
     }
     if (*src == '\n') {
-        *dst++ = *src++;  // Copy newline after .code
+        *dst++ = *src++;  
     }
-
-    // Process each line after .code
     while (*src != '\0') {
-        // Skip all leading spaces/tabs
         while (*src == ' ' || *src == '\t') {
             src++;
         }
-
-        // Ensure a single tab before actual instruction
         *dst++ = '\t';
-
-        // Copy the rest of the line
         while (*src != '\0' && *src != '\n') {
             *dst++ = *src++;
         }
         if (*src == '\n') {
-            *dst++ = *src++;  // Preserve newline
+            *dst++ = *src++; 
         }
     }
-
-    *dst = '\0';  // Null-terminate the buffer
+    *dst = '\0'; 
 }
 
 char *parseFile(const char *fileName) {
