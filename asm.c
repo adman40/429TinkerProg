@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include "uthash.h"
 
-
 #define NUM_HASH_BUCKETS 100
 
 typedef enum {
