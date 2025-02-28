@@ -1,8 +1,8 @@
 .code
 	mov r1, 0
 	priv r0, r1, r0, 3
-	ld r6, 1
-	ld r10, :GO
+	mov r6, 1
+	ld r10, :GO 
 	ld r20, :NEXT
 	ld r30, :FIN
 	ld r25, :LOOP
@@ -17,11 +17,11 @@
 	out r6, r12
 	halt
 :NEXT
-	clr r2
-	ld r3, 1
-	ld r8, 2
+	clr r2 set r2 to 0
+	ld r3, 1 load r3 with 1
+	ld r8, 2 load r8 with 2
 :LOOP
-	brgt r30, r8, r0
+	brgt r30, r8, r0 jumps to :FIN if r8 > r0 (if 2 > n)
 	add r4, r2, r3
 	mov r2, r3
 	mov r3, r4
