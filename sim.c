@@ -294,11 +294,11 @@ void tinkerDiv(int r1, int r2, int r3, uint16_t literal, uint64_t *programCounte
 }
 
 struct tinkerHeader {
-    uint32_t fileType;       // Expected to be 0
-    uint32_t codeSegBegin;  // For this exercise: 0x2000
-    uint32_t codeSegSize;
-    uint32_t dataSegBegin;  // For this exercise: 0x10000
-    uint32_t dataSegSize;
+    uint64_t fileType;       // Expected to be 0
+    uint64_t codeSegBegin;  // For this exercise: 0x2000
+    uint64_t codeSegSize;
+    uint64_t dataSegBegin;  // For this exercise: 0x10000
+    uint64_t dataSegSize;
 };
 
 typedef void (*Instruction)(int r1, int r2, int r3, uint16_t literal, uint64_t *);
