@@ -1,29 +1,29 @@
 .code
-    ld r17, :TWO
-    ld r16, :LOOP
-    ld r15, :FIBBO
-    mov r1, 0
-    mov r2, 1
-    priv r0, r1, r0, 3
-    mov r3, 1
-    mov r4, 2
-    brgt r15, r0, r3
-    brgt r17, r0, r3
-    out r2, r1
-    halt
+	ld r17, :TWO
+	ld r16, :LOOP
+	ld r15, :FIBBO
+	mov r1, 0
+	mov r2, 1
+	priv r0, r1, r0, 3
+	mov r3, 1
+	mov r4, 2
+	brgt r15, r0, r3
+	brgt r17, r0, r3
+	out r2, r1
+	halt
 :TWO
-    out r2, r3
-    halt
+	out r2, r3
+	halt
 :FIBBO
-    mov r10, 0
-    mov r11, 1
-    sub r0, r0, r3
-    sub r0, r0, r3
+	mov r10, 0
+	mov r11, 1
+	sub r0, r0, r3
+	sub r0, r0, r3
 :LOOP
-    add r12, r10, r11
-    mov r10, r11
-    mov r11, r12
-    sub r0, r0, r3
-    brnz r15, r0
-    out r10, r12
-    halt
+	add r12, r10, r11
+	mov r10, r11
+	mov r11, r12
+	sub r0, r0, r3
+	brnz r15, r0
+	out r10, r12
+	halt
