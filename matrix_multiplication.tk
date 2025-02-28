@@ -2,7 +2,7 @@
 	mov r1, 0
 	ld r12, 65536
 	ld r13, 65536
-	mov r6, 8
+	ld r6, 8
 	priv r2, r1, r2, 3
 	mov r29, r2
 	mov r30, r2
