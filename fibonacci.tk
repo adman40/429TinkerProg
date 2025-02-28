@@ -14,7 +14,7 @@
 	ld r9, 1
 	sub r12, r0, r9
 	brnz r20, r12
-	out r6, r12
+	out r6, r9 
 	halt
 :NEXT
 	clr r2
