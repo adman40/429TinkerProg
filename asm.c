@@ -1091,7 +1091,6 @@ Instruction parseLine(const char *line) {
         removeWhitespace(lineCopy);
         if (!isValidMov(lineCopy)) {
             fprintf(stderr, "Invalid mov formatting");
-            exit(-1);
         }
         printf("%s\n", lineCopy);
         if (lineCopy[3] == '(') {
