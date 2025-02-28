@@ -22,11 +22,11 @@ typedef struct HashNode {
 } HashNode;
 
 typedef struct {
-    uint32_t fileType;
-    uint32_t codeSegStart;
-    uint32_t codeSegSize;
-    uint32_t dataSegStart;
-    uint32_t dataSegSize;
+    uint64_t fileType;
+    uint64_t codeSegStart;
+    uint64_t codeSegSize;
+    uint64_t dataSegStart;
+    uint64_t dataSegSize;
 } Header;
 
 typedef struct {
@@ -723,7 +723,7 @@ char *parseFile(const char *fileName) {
         free(dataBuffer);
         return NULL;
     }
-    snprintf(outputBuffer, outputSize, "%u\n%u\n%u\n%u\n%u\n%s%s", header->fileType, header->codeSegStart, header->codeSegSize, header->dataSegStart, header->dataSegSize, codeBuffer, dataBuffer);
+    snprintf(outputBuffer, outputSize, "%lu\n%lu\n%lu\n%lu\n%lu\n%s%s", header->fileType, header->codeSegStart, header->codeSegSize, header->dataSegStart, header->dataSegSize, codeBuffer, dataBuffer);
     return outputBuffer;
 }
 
@@ -1141,16 +1141,16 @@ void stage2Parse(const char* fileName, const char* outputFile) {
         fclose(in);
         return;
     }
-    uint32_t header[5];
+    uint64_t header[5];
     for (int i = 0; i < 5; i++) {
-        if (fscanf(in, "%u", &header[i]) != 1) {
+        if (fscanf(in, "%lu", &header[i]) != 1) {
             fprintf(stderr, "Error reading header value %d\n", i + 1);
             fclose(in);
             fclose(out);
             return;
         }
     }
-    fwrite(header, sizeof(uint32_t), 5, out);
+    fwrite(header, sizeof(uint64_t), 5, out);
     char line[256];
     int isCode = 0;
     while (fgets(line, sizeof(line), in)) {
